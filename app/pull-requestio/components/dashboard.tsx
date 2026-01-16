@@ -363,7 +363,7 @@ export function Dashboard() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
       {/* Header */}
-      <header className="border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
+      <header className="sticky top-0 z-50 border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <Link
