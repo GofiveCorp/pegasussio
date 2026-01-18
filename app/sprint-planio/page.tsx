@@ -26,7 +26,7 @@ export default function SprintPlanioLobby() {
         const randomId = crypto.randomUUID();
         // Save name to local storage or URL param? URL param is easier for now to pass to next page
         router.push(
-          `/sprint-planio/${randomId}?name=${encodeURIComponent(playerName)}`
+          `/sprint-planio/${randomId}?name=${encodeURIComponent(playerName)}`,
         );
         return;
       }
@@ -41,7 +41,7 @@ export default function SprintPlanioLobby() {
 
       if (data) {
         router.push(
-          `/sprint-planio/${data.id}?name=${encodeURIComponent(playerName)}`
+          `/sprint-planio/${data.id}?name=${encodeURIComponent(playerName)}`,
         );
       }
     } catch (error: any) {
@@ -50,7 +50,7 @@ export default function SprintPlanioLobby() {
       // Fallback
       const randomId = crypto.randomUUID();
       router.push(
-        `/sprint-planio/${randomId}?name=${encodeURIComponent(playerName)}`
+        `/sprint-planio/${randomId}?name=${encodeURIComponent(playerName)}`,
       );
     } finally {
       setLoading(false);
@@ -77,7 +77,7 @@ export default function SprintPlanioLobby() {
     }
 
     router.push(
-      `/sprint-planio/${cleanId}?name=${encodeURIComponent(playerName)}`
+      `/sprint-planio/${cleanId}?name=${encodeURIComponent(playerName)}`,
     );
   };
 
@@ -114,17 +114,6 @@ export default function SprintPlanioLobby() {
             />
           </div>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-zinc-200 dark:border-zinc-800" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="bg-white dark:bg-zinc-950 px-2 text-zinc-500">
-                Or
-              </span>
-            </div>
-          </div>
-
           {/* Create Room */}
           <button
             onClick={handleCreateRoom}
@@ -139,18 +128,26 @@ export default function SprintPlanioLobby() {
             Create New Room
           </button>
 
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-zinc-200 dark:border-zinc-800" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="bg-white dark:bg-zinc-950 px-2 text-zinc-500">
+                Or join existing
+              </span>
+            </div>
+          </div>
+
           {/* Join Room */}
           <form onSubmit={handleJoinRoom} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                Join Existing Room
-              </label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={joinId}
                   onChange={(e) => setJoinId(e.target.value)}
-                  placeholder="Room UUID..."
+                  placeholder="Paste Room UUID..."
                   className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                 />
                 <button

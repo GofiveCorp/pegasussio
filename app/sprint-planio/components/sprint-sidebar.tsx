@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import axios from "axios";
 import { useForm } from "react-hook-form";
 import {
   Users,
@@ -13,6 +14,7 @@ import {
   RotateCcw,
   Pencil,
   Trash2,
+  Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +30,9 @@ import {
 import { cn } from "@/lib/utils";
 import { Ticket } from "../types";
 import { useSprintStore } from "../store";
+import { JiraImportDialog } from "./jira-import-dialog";
+import { CloudDownload } from "lucide-react";
+import { toast } from "sonner";
 
 interface SprintSidebarProps {
   onAddTicket: (title: string) => void;
@@ -56,6 +61,7 @@ export function SprintSidebar({
   );
 
   const [showAddTicket, setShowAddTicket] = useState(false);
+  const [showJiraImport, setShowJiraImport] = useState(false);
   const { register, handleSubmit, reset, setFocus } = useForm<TicketFormData>();
 
   const [editingTicket, setEditingTicket] = useState<{
@@ -90,6 +96,48 @@ export function SprintSidebar({
     }
   };
 
+  const handlePostScoreToJira = async (ticket: Ticket) => {
+    const match = ticket.title.match(/^([A-Z]+-\d+):/);
+    if (!match) return;
+
+    const issueKey = match[1];
+    const score = ticket.score;
+
+    if (!score) {
+      toast.error("No score to post");
+      return;
+    }
+
+    const domain = localStorage.getItem("jira_domain");
+    const email = localStorage.getItem("jira_email");
+    const token = localStorage.getItem("jira_token");
+
+    if (!domain || !email || !token) {
+      toast.error(
+        "Missing Jira credentials. Please open Import dialog to save them.",
+      );
+      return;
+    }
+
+    const toastId = toast.loading("Posting score to Jira...");
+
+    try {
+      await axios.post("/api/jira/comment", {
+        domain,
+        email,
+        token,
+        issueKey,
+        comment: `Sprint Poker Score: ${score}\n\nPowered by Sprint Planio 🚀`,
+      });
+      toast.success("Score posted to Jira!", { id: toastId });
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.response?.data?.error || "Failed to post score", {
+        id: toastId,
+      });
+    }
+  };
+
   return (
     <div className="w-full lg:w-80 flex flex-col gap-8 border-t lg:border-t-0 lg:border-l border-zinc-200 dark:border-zinc-800 pt-8 lg:pt-0 lg:pl-8">
       {/* AGENDA SECTION */}
@@ -98,21 +146,32 @@ export function SprintSidebar({
           <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-500">
             <List className="h-4 w-4" /> Agenda
           </h3>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              setShowAddTicket(!showAddTicket);
-              if (!showAddTicket) setTimeout(() => setFocus("title"), 0);
-            }}
-            className="h-6 w-6"
-          >
-            {showAddTicket ? (
-              <X className="h-4 w-4" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowJiraImport(true)}
+              className="h-6 w-6"
+              title="Import from Jira"
+            >
+              <CloudDownload className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setShowAddTicket(!showAddTicket);
+                if (!showAddTicket) setTimeout(() => setFocus("title"), 0);
+              }}
+              className="h-6 w-6"
+            >
+              {showAddTicket ? (
+                <X className="h-4 w-4" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         </div>
 
         {showAddTicket && (
@@ -156,8 +215,9 @@ export function SprintSidebar({
               return (
                 <div
                   key={ticket.id}
+                  onClick={() => onSetActiveTicket(ticket)}
                   className={cn(
-                    "group relative p-3 rounded-lg border transition-all hover:shadow-sm",
+                    "group relative p-3 rounded-lg border transition-all hover:shadow-sm cursor-pointer",
                     isActive
                       ? "bg-white dark:bg-zinc-900 border-blue-500 shadow-md ring-1 ring-blue-500/20"
                       : isCompleted
@@ -206,25 +266,31 @@ export function SprintSidebar({
 
                     {/* Actions */}
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {!isActive && !isCompleted && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-50"
-                          onClick={() => onSetActiveTicket(ticket)}
-                          title="Start Voting"
-                        >
-                          <Play className="h-3 w-3 fill-current" />
-                        </Button>
-                      )}
-
                       {isCompleted && (
                         <>
+                          {/* Check for Jira Key pattern */}
+                          {ticket.title.match(/^[A-Z]+-\d+:/) && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handlePostScoreToJira(ticket);
+                              }}
+                              title="Post Score to Jira"
+                            >
+                              <Send className="h-3 w-3" />
+                            </Button>
+                          )}
                           <Button
                             size="icon"
                             variant="ghost"
                             className="h-6 w-6 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                            onClick={() => onRevote(ticket)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRevote(ticket);
+                            }}
                             title="Revote"
                           >
                             <RotateCcw className="h-3 w-3" />
@@ -233,13 +299,14 @@ export function SprintSidebar({
                             size="icon"
                             variant="ghost"
                             className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                            onClick={() =>
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setEditingTicket({
                                 id: ticket.id,
                                 title: ticket.title,
                                 score: ticket.score || "",
-                              })
-                            }
+                              });
+                            }}
                             title="Edit Score"
                           >
                             <Edit3 className="h-3 w-3" />
@@ -251,12 +318,13 @@ export function SprintSidebar({
                         size="icon"
                         variant="ghost"
                         className="h-6 w-6 text-zinc-400 hover:text-blue-600"
-                        onClick={() =>
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setRenamingTicket({
                             id: ticket.id,
                             title: ticket.title,
-                          })
-                        }
+                          });
+                        }}
                         title="Rename"
                       >
                         <Pencil className="h-3 w-3" />
@@ -266,7 +334,10 @@ export function SprintSidebar({
                         size="icon"
                         variant="ghost"
                         className="h-6 w-6 text-zinc-400 hover:text-red-600 hover:bg-red-50"
-                        onClick={() => onDeleteTicket(ticket.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteTicket(ticket.id);
+                        }}
                         title="Delete"
                       >
                         <Trash2 className="h-3 w-3" />
@@ -385,6 +456,16 @@ export function SprintSidebar({
           </div>
         </DialogContent>
       </Dialog>
+
+      <JiraImportDialog
+        open={showJiraImport}
+        onOpenChange={setShowJiraImport}
+        onImport={(issues) => {
+          issues.forEach((issue) => {
+            onAddTicket(`${issue.key}: ${issue.summary}`);
+          });
+        }}
+      />
     </div>
   );
 }

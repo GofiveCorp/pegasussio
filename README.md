@@ -32,6 +32,10 @@ A real-time Agile planning poker application.
   - Create, rename, and delete agenda items.
   - Custom score input for edge cases.
   - Edit scores and revote on completed tickets.
+  - **View History**: Click on completed tickets to review voting results.
+- **Jira Integration**:
+  - **Import**: Search and import issues directly from Jira using JQL.
+  - **Post Score**: Send the final voting score back to the Jira ticket as a comment.
 
 ## Tech Stack
 
