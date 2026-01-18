@@ -24,7 +24,7 @@ const isRecentPR = (createdAt: string) => {
 // Helper to get branch color styles
 const getBranchStyle = (branch: string) => {
   const b = branch.toLowerCase();
-  if (b === "dev")
+  if (b === "develop")
     return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800";
   if (b === "uat")
     return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800";
@@ -37,29 +37,7 @@ const getBranchStyle = (branch: string) => {
   return "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700";
 };
 
-export interface PullRequest {
-  id: number;
-  number: number;
-  title: string;
-  html_url: string;
-  state: string;
-  user: {
-    login: string;
-    avatar_url: string;
-  };
-  created_at: string;
-  head: {
-    ref: string;
-    label: string;
-  };
-  base: {
-    ref: string;
-    label: string;
-    repo: {
-      full_name: string;
-    };
-  };
-}
+import { PullRequest } from "../types";
 
 interface PRListProps {
   pullRequests: PullRequest[];
