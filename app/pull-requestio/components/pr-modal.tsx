@@ -4,14 +4,25 @@ import { useState, useEffect } from "react";
 import { Octokit } from "octokit";
 import { toast } from "sonner";
 import {
-  X,
   Check,
   FileCode,
   ChevronDown,
   ChevronRight,
   Loader2,
   MessageCircle,
+  X,
 } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Card } from "@/components/ui/card";
 
 interface PRModalProps {
   pr: any;
@@ -141,47 +152,38 @@ export function PRModal({ pr, token, onClose, onApprove }: PRModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col border border-zinc-200 dark:border-zinc-800">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800">
-          <div>
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 line-clamp-1">
-              {pr.title}
-            </h2>
-            <p className="text-sm text-zinc-500 flex items-center gap-2 mt-1">
-              <span>
-                #{pr.number} in {pr.base.repo.full_name} by {pr.user.login}
-              </span>
-              <span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
-              <span className="font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
-                {pr.head.ref}
-              </span>
-              <span className="text-xs">→</span>
-              <span className="font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
-                {pr.base.ref}
-              </span>
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+    <Dialog open={!!pr} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="p-4 border-b border-zinc-200 dark:border-zinc-800">
+          <DialogTitle className="flex items-start justify-between">
+            <div className="flex flex-col gap-1">
+              <span className="line-clamp-1 mr-4">{pr.title}</span>
+              <div className="flex items-center flex-wrap gap-2 text-sm font-normal text-zinc-500">
+                <span>
+                  #{pr.number} in {pr.base.repo.full_name} by {pr.user.login}
+                </span>
+                <Badge variant="outline" className="font-mono text-xs">
+                  {pr.head.ref}
+                </Badge>
+                <span className="text-xs">→</span>
+                <Badge variant="outline" className="font-mono text-xs">
+                  {pr.base.ref}
+                </Badge>
+              </div>
+            </div>
+          </DialogTitle>
+        </DialogHeader>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <div className="prose dark:prose-invert max-w-none mb-6 text-sm text-zinc-600 dark:text-zinc-300 whitespace-pre-wrap">
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          <div className="prose dark:prose-invert max-w-none text-sm text-zinc-600 dark:text-zinc-300 whitespace-pre-wrap">
             {pr.body || "No description provided."}
           </div>
 
           {comments.length > 0 && (
-            <div className="space-y-4 mb-6">
+            <div className="space-y-4">
               <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                <MessageCircle className="h-4 w-4" />
-                Comments ({comments.length})
+                <MessageCircle className="h-4 w-4" /> Comments (
+                {comments.length})
               </h3>
               <div className="space-y-3">
                 {comments.map((comment) => (
@@ -189,11 +191,12 @@ export function PRModal({ pr, token, onClose, onApprove }: PRModalProps) {
                     key={comment.id}
                     className="flex gap-3 bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800"
                   >
-                    <img
-                      src={comment.user.avatar_url}
-                      alt={comment.user.login}
-                      className="h-8 w-8 rounded-full border border-zinc-200 dark:border-zinc-700 mt-1"
-                    />
+                    <Avatar className="h-8 w-8 mt-1">
+                      <AvatarImage src={comment.user.avatar_url} />
+                      <AvatarFallback>
+                        {comment.user.login.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-medium text-zinc-900 dark:text-zinc-100">
@@ -206,9 +209,7 @@ export function PRModal({ pr, token, onClose, onApprove }: PRModalProps) {
                       {isHtml(comment.body) ? (
                         <div
                           className="text-sm text-zinc-600 dark:text-zinc-300 prose dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
-                          dangerouslySetInnerHTML={{
-                            __html: comment.body,
-                          }}
+                          dangerouslySetInnerHTML={{ __html: comment.body }}
                         />
                       ) : (
                         <div className="text-sm text-zinc-600 dark:text-zinc-300 whitespace-pre-wrap break-words">
@@ -222,88 +223,84 @@ export function PRModal({ pr, token, onClose, onApprove }: PRModalProps) {
             </div>
           )}
 
-          <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-            <FileCode className="h-4 w-4" />
-            Changed Files ({files.length})
-          </h3>
+          <div className="space-y-4">
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+              <FileCode className="h-4 w-4" /> Changed Files ({files.length})
+            </h3>
 
-          {loadingFiles ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {files.map((file) => (
-                <div
-                  key={file.filename}
-                  className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden"
-                >
-                  <button
-                    onClick={() => toggleFile(file.filename)}
-                    className="w-full flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+            {loadingFiles ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {files.map((file) => (
+                  <div
+                    key={file.filename}
+                    className="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden"
                   >
-                    <div className="flex items-center gap-2 font-mono text-sm text-zinc-700 dark:text-zinc-300">
-                      {expandedFiles.has(file.filename) ? (
-                        <ChevronDown className="h-4 w-4 text-zinc-400" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-zinc-400" />
-                      )}
-                      <span className="break-all">{file.filename}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs">
-                      <span className="text-green-600">+{file.additions}</span>
-                      <span className="text-red-600">-{file.deletions}</span>
-                    </div>
-                  </button>
-
-                  {expandedFiles.has(file.filename) && (
-                    <div className="p-3 bg-zinc-50 dark:bg-zinc-950 overflow-x-auto">
-                      <pre className="text-xs font-mono text-zinc-600 dark:text-zinc-400 whitespace-pre">
-                        {file.patch ? (
-                          <div className="flex flex-col">
-                            {file.patch.split("\n").map((line, i) => {
-                              let bgClass = "";
-                              let textClass =
-                                "text-zinc-600 dark:text-zinc-400";
-
-                              if (line.startsWith("+")) {
-                                bgClass =
-                                  "bg-green-500/10 dark:bg-green-500/20";
-                                textClass =
-                                  "text-green-700 dark:text-green-300";
-                              } else if (line.startsWith("-")) {
-                                bgClass = "bg-red-500/10 dark:bg-red-500/20";
-                                textClass = "text-red-700 dark:text-red-300";
-                              } else if (line.startsWith("@@")) {
-                                textClass =
-                                  "text-blue-500/70 dark:text-blue-400/70";
-                              }
-
-                              return (
-                                <div key={i} className={`${bgClass} w-full`}>
-                                  <span
-                                    className={`inline-block select-none w-6 text-right mr-2 opacity-30 text-[10px]`}
-                                  >
-                                    {/* Line numbers could go here later */}
-                                  </span>
-                                  <span className={textClass}>{line}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
+                    <button
+                      onClick={() => toggleFile(file.filename)}
+                      className="w-full flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-2 font-mono text-sm text-zinc-700 dark:text-zinc-300">
+                        {expandedFiles.has(file.filename) ? (
+                          <ChevronDown className="h-4 w-4 text-zinc-400" />
                         ) : (
-                          "No changes to display (binary file or large diff)."
+                          <ChevronRight className="h-4 w-4 text-zinc-400" />
                         )}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+                        <span className="break-all">{file.filename}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="text-green-600">
+                          +{file.additions}
+                        </span>
+                        <span className="text-red-600">-{file.deletions}</span>
+                      </div>
+                    </button>
+
+                    {expandedFiles.has(file.filename) && (
+                      <div className="p-3 bg-zinc-50 dark:bg-zinc-950 overflow-x-auto">
+                        <pre className="text-xs font-mono text-zinc-600 dark:text-zinc-400 whitespace-pre">
+                          {file.patch ? (
+                            <div className="flex flex-col">
+                              {file.patch.split("\n").map((line, i) => {
+                                let bgClass = "";
+                                let textClass =
+                                  "text-zinc-600 dark:text-zinc-400";
+                                if (line.startsWith("+")) {
+                                  bgClass =
+                                    "bg-green-500/10 dark:bg-green-500/20";
+                                  textClass =
+                                    "text-green-700 dark:text-green-300";
+                                } else if (line.startsWith("-")) {
+                                  bgClass = "bg-red-500/10 dark:bg-red-500/20";
+                                  textClass = "text-red-700 dark:text-red-300";
+                                } else if (line.startsWith("@@")) {
+                                  textClass =
+                                    "text-blue-500/70 dark:text-blue-400/70";
+                                }
+                                return (
+                                  <div key={i} className={`${bgClass} w-full`}>
+                                    <span className="inline-block select-none w-6 text-right mr-2 opacity-30 text-[10px]"></span>
+                                    <span className={textClass}>{line}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            "No changes to display (binary file or large diff)."
+                          )}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Footer / Actions */}
         <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 flex flex-col sm:flex-row gap-4 items-end sm:items-center">
           <div className="flex-1 w-full">
             <label className="text-xs font-medium text-zinc-500 mb-1 block">
@@ -316,20 +313,20 @@ export function PRModal({ pr, token, onClose, onApprove }: PRModalProps) {
               placeholder="Leave a comment (optional)..."
             />
           </div>
-          <button
+          <Button
             onClick={handleApprove}
             disabled={submitting}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
           >
             {submitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
             ) : (
-              <Check className="h-4 w-4" />
+              <Check className="h-4 w-4 mr-2" />
             )}
             Approve PR
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

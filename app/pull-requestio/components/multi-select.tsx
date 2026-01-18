@@ -2,6 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { ChevronDown, Search, X, Check, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export interface SelectOption {
   value: string;
@@ -29,7 +34,7 @@ export function MultiSelect({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const filteredOptions = options.filter((option) =>
-    option.label.toLowerCase().includes(search.toLowerCase())
+    option.label.toLowerCase().includes(search.toLowerCase()),
   );
 
   useEffect(() => {
@@ -76,10 +81,10 @@ export function MultiSelect({
         {label}
       </label>
       <div
-        className="relative w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm cursor-pointer min-h-[38px]"
+        className="relative w-full rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-3 py-2 text-sm cursor-pointer min-h-[40px] flex items-center"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 w-full">
           <div className="flex-1 flex flex-wrap gap-1.5">
             {selectedValues.length === 0 ? (
               <span className="text-zinc-500 text-sm">
@@ -89,16 +94,18 @@ export function MultiSelect({
               selectedValues.map((value) => {
                 const option = getOptionByValue(value);
                 return (
-                  <span
+                  <Badge
                     key={value}
-                    className="inline-flex items-center gap-1.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded text-xs font-medium"
+                    variant="secondary"
+                    className="pl-1 pr-1 py-0.5 gap-1 font-normal bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400"
                   >
                     {option?.avatar && (
-                      <img
-                        src={option.avatar}
-                        alt={option.label}
-                        className="h-4 w-4 rounded-full"
-                      />
+                      <Avatar className="h-4 w-4">
+                        <AvatarImage src={option.avatar} />
+                        <AvatarFallback>
+                          {option.label.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
                     )}
                     {option?.label || value}
                     <button
@@ -107,20 +114,22 @@ export function MultiSelect({
                     >
                       <X className="h-3 w-3" />
                     </button>
-                  </span>
+                  </Badge>
                 );
               })
             )}
           </div>
           <div className="flex items-center gap-1">
             {selectedValues.length > 0 && (
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={handleClearAll}
-                className="hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded p-1"
+                className="h-6 w-6 text-zinc-400"
                 title="Clear all"
               >
-                <X className="h-4 w-4 text-zinc-400" />
-              </button>
+                <X className="h-4 w-4" />
+              </Button>
             )}
             <ChevronDown
               className={`h-4 w-4 text-zinc-400 transition-transform ${
@@ -132,16 +141,16 @@ export function MultiSelect({
       </div>
 
       {isOpen && (
-        <div className="absolute z-20 w-full mt-1 bg-white dark:bg-zinc-900 rounded-lg shadow-lg border border-zinc-200 dark:border-zinc-800">
+        <Card className="absolute z-20 w-full mt-1 bg-white dark:bg-zinc-900 shadow-lg border-zinc-200 dark:border-zinc-800">
           <div className="p-2 border-b border-zinc-200 dark:border-zinc-800">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-zinc-400" />
-              <input
+              <Input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search..."
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-zinc-50 dark:bg-zinc-800 rounded-md border-none focus:ring-1 focus:ring-blue-500 outline-none"
+                className="pl-8 h-8 text-xs"
                 autoFocus
                 onClick={(e) => e.stopPropagation()}
               />
@@ -155,38 +164,41 @@ export function MultiSelect({
             ) : (
               <>
                 {selectedValues.length > 0 && (
-                  <button
+                  <Button
+                    variant="ghost"
                     onClick={(e) => {
                       e.stopPropagation();
                       onChange([]);
                     }}
-                    className="w-full text-left px-2 py-1.5 text-sm rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-zinc-500 border-b border-zinc-100 dark:border-zinc-800 mb-1"
+                    className="w-full justify-start h-8 px-2 text-xs text-zinc-500 mb-1 border-b border-zinc-100 dark:border-zinc-800 rounded-none"
                   >
                     Clear all ({selectedValues.length} selected)
-                  </button>
+                  </Button>
                 )}
                 {filteredOptions.map((option) => {
                   const isSelected = selectedValues.includes(option.value);
                   return (
-                    <button
+                    <Button
                       key={option.value}
+                      variant="ghost"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleToggle(option.value);
                       }}
-                      className={`w-full text-left px-3 py-2 text-sm rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex items-center justify-between gap-2 ${
+                      className={`w-full justify-between h-auto py-2 px-3 text-sm font-normal ${
                         isSelected
-                          ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                          ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30"
                           : ""
                       }`}
                     >
                       <span className="flex items-center gap-2 flex-1 min-w-0">
                         {option.avatar ? (
-                          <img
-                            src={option.avatar}
-                            alt={option.label}
-                            className="h-6 w-6 rounded-full flex-shrink-0"
-                          />
+                          <Avatar className="h-6 w-6">
+                            <AvatarImage src={option.avatar} />
+                            <AvatarFallback>
+                              {option.label.charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
                         ) : (
                           <div className="h-6 w-6 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center flex-shrink-0">
                             <User className="h-4 w-4 text-zinc-400" />
@@ -197,13 +209,13 @@ export function MultiSelect({
                       {isSelected && (
                         <Check className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
                       )}
-                    </button>
+                    </Button>
                   );
                 })}
               </>
             )}
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

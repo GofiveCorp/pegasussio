@@ -27,6 +27,20 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
+// Shadcn Components
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { ModeToggle } from "@/components/mode-toggle";
+
 const DEFAULT_DECK = [
   "0",
   "1",
@@ -90,7 +104,6 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
   // UI State
   const [showSettings, setShowSettings] = useState(false);
   const [showAddTicket, setShowAddTicket] = useState(false);
-  const [tempAgenda, setTempAgenda] = useState("");
   const [tempDeck, setTempDeck] = useState("");
   const [newTicketTitle, setNewTicketTitle] = useState("");
 
@@ -241,7 +254,6 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
                 ? prev
                 : [...prev, payload.new as Player],
             );
-            // Optional: toast.info(`${(payload.new as Player).name} joined!`);
           } else if (payload.eventType === "UPDATE") {
             setPlayers((prev) =>
               prev.map((p) =>
@@ -287,11 +299,7 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
       // Ticket Deletes (Unfiltered, check existence)
       .on(
         "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "tickets",
-        },
+        { event: "DELETE", schema: "public", table: "tickets" },
         (payload) => {
           setTickets((prev) => {
             if (prev.some((t) => t.id === payload.old.id)) {
@@ -537,12 +545,11 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
       {/* Header */}
       <header className="sticky top-0 z-50 flex items-center justify-between border-b border-zinc-200 bg-white/80 px-4 py-3 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/80">
         <div className="flex items-center gap-4">
-          <Link
-            href="/sprint-planio"
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/sprint-planio">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+          </Button>
           <div className="flex flex-col">
             <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
               Sprint Planio
@@ -553,18 +560,21 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <ModeToggle />
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => {
               setTempDeck(deck.join(", "));
               setShowSettings(true);
             }}
-            className="p-2 text-zinc-600 hover:bg-zinc-100 rounded-lg dark:text-zinc-400 dark:hover:bg-zinc-800"
           >
             <Settings className="h-5 w-5" />
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={copyRoomId}
-            className="p-2 text-zinc-600 hover:bg-zinc-100 rounded-lg dark:text-zinc-400 dark:hover:bg-zinc-800"
             title="Copy Room ID"
           >
             {isCopied ? (
@@ -572,32 +582,33 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
             ) : (
               <Copy className="h-5 w-5" />
             )}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={handleReset}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-zinc-100 hover:bg-zinc-200 rounded-full dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+            className="gap-2"
           >
             <RefreshCw className="h-4 w-4" /> Reset
-          </button>
+          </Button>
         </div>
       </header>
 
       {/* Banner: Active Ticket */}
       <div className="bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 py-4 px-6 text-center">
         {activeTicket ? (
-          <div>
+          <div className="flex flex-col items-center">
             <h2 className="text-2xl font-bold text-zinc-900 dark:text-white flex items-center justify-center gap-2">
               <span className="text-blue-500">#{activeTicket.title}</span>
-              {isViewOnly && (
-                <span className="text-xs bg-zinc-100 text-zinc-500 px-2 py-1 rounded">
-                  View Only (Completed)
-                </span>
-              )}
+              {isViewOnly && <Badge variant="secondary">View Only</Badge>}
             </h2>
             {activeTicket.score && (
-              <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-bold ml-2">
+              <Badge
+                variant="outline"
+                className="mt-2 text-lg px-3 py-1 bg-green-50 text-green-700 border-green-200"
+              >
                 Score: {activeTicket.score}
-              </span>
+              </Badge>
             )}
           </div>
         ) : (
@@ -621,7 +632,6 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
                   <div
                     className={cn(
                       "relative h-28 w-20 sm:h-32 sm:w-24 rounded-xl border-2 flex items-center justify-center shadow-xl transition-all duration-300 transform",
-                      // Revealed (IsViewOnly is always revealed)
                       revealed &&
                         p.vote &&
                         "border-blue-600 bg-white dark:bg-zinc-900 dark:border-blue-500 rotate-y-0",
@@ -677,17 +687,17 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
 
             {/* Controls */}
             <div className="flex flex-col items-center gap-6">
-              {/* Only show Reveal button if NOT ViewOnly */}
               {!isViewOnly &&
                 !revealed &&
                 (selected || players.some((p) => p.vote)) && (
                   <div className="animate-in fade-in slide-in-from-bottom-4 text-center">
-                    <button
+                    <Button
+                      size="lg"
                       onClick={handleReveal}
-                      className="flex items-center gap-2 px-8 py-3 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:text-black rounded-full font-bold shadow-lg hover:scale-105 active:scale-95 transition-all"
+                      className="rounded-full shadow-lg gap-2 px-8"
                     >
                       <Eye className="h-5 w-5" /> Reveal Cards
-                    </button>
+                    </Button>
                     <p className="text-xs mt-2 text-zinc-400">
                       {players.filter((p) => p.vote).length}/{players.length}{" "}
                       voted
@@ -706,22 +716,22 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
                     </p>
                   </div>
 
-                  {/* Save Custom Score (Only if NOT view only and NOT saved yet) */}
+                  {/* Save Custom Score */}
                   {activeTicket && !activeTicket.score && !isViewOnly && (
                     <div className="flex items-center gap-2 bg-white dark:bg-zinc-900 p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-lg">
-                      <input
+                      <Input
                         type="text"
                         value={customScore}
                         onChange={(e) => setCustomScore(e.target.value)}
-                        className="w-20 text-center font-bold text-lg bg-transparent border-none outline-none focus:ring-0"
+                        className="w-20 text-center font-bold text-lg border-none focus-visible:ring-0 shadow-none bg-transparent"
                         placeholder={average || "-"}
                       />
-                      <button
+                      <Button
                         onClick={handleSaveScore}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium shadow-sm hover:bg-green-700 transition-colors"
+                        className="bg-green-600 hover:bg-green-700"
                       >
                         Save
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -763,306 +773,321 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
         {/* SIDEBAR */}
         <div className="w-full lg:w-80 flex flex-col gap-8 border-t lg:border-t-0 lg:border-l border-zinc-200 dark:border-zinc-800 pt-8 lg:pt-0 lg:pl-8">
           {/* AGENDA SECTION */}
-          <div className="flex-1">
+          <Card className="flex-1 flex flex-col border-none shadow-none bg-transparent">
             <div className="flex items-center justify-between mb-4">
               <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-500">
                 <List className="h-4 w-4" /> Agenda
               </h3>
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => setShowAddTicket(!showAddTicket)}
-                className="p-1 hover:bg-zinc-100 rounded dark:hover:bg-zinc-800"
+                className="h-6 w-6"
               >
                 {showAddTicket ? (
                   <X className="h-4 w-4" />
                 ) : (
                   <Plus className="h-4 w-4" />
                 )}
-              </button>
+              </Button>
             </div>
 
             {showAddTicket && (
-              <div className="mb-4 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                <input
+              <Card className="mb-4 p-3 bg-zinc-50 dark:bg-zinc-900 border-dashed">
+                <Input
                   value={newTicketTitle}
                   onChange={(e) => setNewTicketTitle(e.target.value)}
                   placeholder="Enter ticket title..."
-                  className="w-full text-sm p-2 rounded mb-2 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-black"
+                  className="mb-2 bg-white dark:bg-black"
                   autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleAddTicket();
+                    if (e.key === "Escape") setShowAddTicket(false);
+                  }}
                 />
-                <button
-                  onClick={handleAddTicket}
-                  className="w-full bg-blue-600 text-white text-xs font-bold py-2 rounded-lg"
-                >
-                  Add Ticket
-                </button>
-              </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowAddTicket(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={handleAddTicket}>
+                    Add
+                  </Button>
+                </div>
+              </Card>
             )}
 
-            <ul className="space-y-2 max-h-[300px] overflow-y-auto">
-              {tickets.map((t) => (
-                <li
-                  key={t.id}
-                  className={cn(
-                    "p-3 rounded-xl border transition-all flex items-center justify-between group cursor-pointer", // Added cursor-pointer
-                    activeTicket?.id === t.id
-                      ? "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800"
-                      : "bg-white border-zinc-100 dark:bg-zinc-900 dark:border-zinc-800 hover:border-zinc-300",
-                  )}
-                  onClick={() =>
-                    t.id !== activeTicket?.id && handleSetActiveTicket(t)
-                  } // Allow clicking row to view/set active
-                >
-                  <div className="flex flex-col min-w-0 flex-1 mr-2">
-                    <span
+            <div className="flex-1 overflow-y-auto space-y-2 pr-2 max-h-[500px]">
+              {tickets.length === 0 && !showAddTicket ? (
+                <div className="text-center py-8 text-zinc-400 text-sm">
+                  <p>No agenda items yet.</p>
+                  <Button
+                    variant="link"
+                    className="mt-2 text-blue-500"
+                    onClick={() => setShowAddTicket(true)}
+                  >
+                    Add First Ticket
+                  </Button>
+                </div>
+              ) : (
+                tickets.map((t) => {
+                  const isActive = activeTicket?.id === t.id;
+                  const isCompleted = t.status === "completed";
+
+                  return (
+                    <Card
+                      key={t.id}
                       className={cn(
-                        "text-sm font-medium truncate",
-                        activeTicket?.id === t.id &&
-                          "text-blue-700 dark:text-blue-300",
+                        "group p-3 transition-all cursor-pointer hover:shadow-md border-transparent hover:border-zinc-200 dark:hover:border-zinc-800",
+                        isActive &&
+                          "bg-blue-50 border-blue-200 dark:bg-blue-900/10 dark:border-blue-800 ring-1 ring-blue-200 dark:ring-blue-800",
+                        isCompleted && "opacity-75 bg-zinc-50 dark:bg-zinc-900",
+                        !isActive && !isCompleted && "bg-white dark:bg-black",
                       )}
+                      onClick={() => handleSetActiveTicket(t)}
                     >
-                      {t.title}
-                    </span>
-                    {t.score && (
-                      <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded w-fit mt-1">
-                        Score: {t.score}
-                      </span>
-                    )}
-                  </div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            {isActive && (
+                              <Play className="h-3 w-3 text-blue-500 fill-blue-500 animate-pulse" />
+                            )}
+                            {isCompleted && (
+                              <CheckCircle className="h-3 w-3 text-green-500" />
+                            )}
+                            <span
+                              className={cn(
+                                "font-medium text-sm line-clamp-2",
+                                isCompleted && "text-zinc-500 line-through",
+                              )}
+                            >
+                              {t.title}
+                            </span>
+                          </div>
+                          {t.score && (
+                            <Badge
+                              variant="secondary"
+                              className="text-xs h-5 px-1.5"
+                            >
+                              Score: {t.score}
+                            </Badge>
+                          )}
+                        </div>
 
-                  <div className="flex items-center gap-1">
-                    {/* Play Button (if not active and NOT completed) */}
-                    {activeTicket?.id !== t.id && t.status !== "completed" && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSetActiveTicket(t);
-                        }}
-                        title="Vote now"
-                        className="p-1.5 text-zinc-400 hover:text-blue-600 hover:bg-blue-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Play className="h-4 w-4" />
-                      </button>
-                    )}
-
-                    <div
-                      className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {/* Rename */}
-                      <button
-                        onClick={() =>
-                          setRenamingTicket({ id: t.id, title: t.title })
-                        }
-                        title="Rename"
-                        className="p-1.5 text-zinc-400 hover:text-blue-600 hover:bg-blue-100 rounded-full"
-                      >
-                        <Edit3 className="h-3 w-3" />
-                      </button>
-
-                      {/* Delete */}
-                      <button
-                        onClick={() => handleDeleteTicket(t.id)}
-                        title="Delete"
-                        className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-100 rounded-full"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-
-                      {/* Completed Actions */}
-                      {t.score && (
-                        <>
-                          <button
-                            onClick={() =>
-                              setEditingTicket({
-                                id: t.id,
-                                title: t.title,
-                                score: t.score || "",
-                              })
-                            }
-                            title="Edit Score"
-                            className="p-1.5 text-zinc-400 hover:text-orange-600 hover:bg-orange-100 rounded-full"
+                        {/* Actions */}
+                        <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          {isCompleted ? (
+                            <>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 text-zinc-400 hover:text-blue-500"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingTicket({
+                                    id: t.id,
+                                    title: t.title,
+                                    score: t.score || "",
+                                  });
+                                }}
+                                title="Edit Score"
+                              >
+                                <Edit3 className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 text-zinc-400 hover:text-orange-500"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRevote(t);
+                                }}
+                                title="Revote"
+                              >
+                                <RotateCcw className="h-3 w-3" />
+                              </Button>
+                            </>
+                          ) : (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 text-zinc-400 hover:text-blue-500"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRenamingTicket({ id: t.id, title: t.title });
+                              }}
+                              title="Rename"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                          )}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6 text-zinc-400 hover:text-red-500"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTicket(t.id);
+                            }}
+                            title="Delete"
                           >
-                            <Pencil className="h-3 w-3" />
-                          </button>
-                          <button
-                            onClick={() => handleRevote(t)}
-                            title="Revote"
-                            className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-100 rounded-full"
-                          >
-                            <RotateCcw className="h-3 w-3" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Completed Check */}
-                    {t.status === "completed" && !t.score && (
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                    )}
-                  </div>
-                </li>
-              ))}
-              {tickets.length === 0 && (
-                <li className="text-sm text-zinc-400 italic text-center py-4">
-                  No tickets yet. Add one!
-                </li>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })
               )}
-            </ul>
-          </div>
+            </div>
+          </Card>
 
-          {/* PLAYERS SECTION */}
-          <div>
-            <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-500 mb-4">
+          {/* PLAYERS LIST (Sidebar) */}
+          <Card className="border-none shadow-none bg-transparent">
+            <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-500">
               <Users className="h-4 w-4" /> Players ({players.length})
             </h3>
-            <ul className="space-y-2">
-              {displayPlayers.map((p) => (
-                <li
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+              {players.map((p) => (
+                <div
                   key={p.id}
-                  className="flex items-center justify-between p-2 rounded-lg"
+                  className="flex items-center justify-between p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
                 >
-                  <div className="flex items-center gap-2">
-                    <div className="h-6 w-6 rounded-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-[10px] font-bold">
-                      {p.name.charAt(0).toUpperCase()}
-                    </div>
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300 text-xs font-bold">
+                        {p.name.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
                     <span
                       className={cn(
-                        "text-sm",
-                        p.id === playerId && "font-bold",
+                        "text-sm font-medium",
+                        p.id === playerId && "text-blue-600",
                       )}
                     >
                       {p.name} {p.id === playerId && "(You)"}
                     </span>
                   </div>
-                  {p.vote && (
-                    <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                  {p.vote && !roomState?.is_revealed && (
+                    <span className="h-2 w-2 rounded-full bg-green-500 block animate-pulse" />
                   )}
-                </li>
+                  {p.vote && roomState?.is_revealed && (
+                    <span className="font-bold font-mono text-zinc-900 dark:text-zinc-100">
+                      {p.vote}
+                    </span>
+                  )}
+                </div>
               ))}
-            </ul>
-          </div>
+            </div>
+          </Card>
         </div>
-
-        {/* Global Modals */}
-
-        {/* Settings Modal */}
-        {showSettings && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="w-full max-w-md bg-white dark:bg-zinc-950 rounded-3xl shadow-xl p-6 border border-zinc-200 dark:border-zinc-800">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-lg font-bold">Settings</h2>
-                <button onClick={() => setShowSettings(false)}>
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Card Deck
-                </label>
-                <input
-                  value={tempDeck}
-                  onChange={(e) => setTempDeck(e.target.value)}
-                  className="w-full border rounded-xl p-3 bg-zinc-50 dark:bg-zinc-900"
-                  placeholder="0, 1, 2, 3..."
-                />
-                <button
-                  onClick={handleSaveSettings}
-                  className="w-full mt-4 bg-zinc-900 text-white py-3 rounded-xl font-bold hover:bg-zinc-800"
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Rename Modal */}
-        {renamingTicket && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="w-full max-w-sm bg-white dark:bg-zinc-950 rounded-3xl shadow-xl p-6 border border-zinc-200 dark:border-zinc-800">
-              <h3 className="font-bold mb-4">Rename Agenda</h3>
-              <input
-                value={renamingTicket.title}
-                onChange={(e) =>
-                  setRenamingTicket({
-                    ...renamingTicket,
-                    title: e.target.value,
-                  })
-                }
-                className="w-full border rounded-xl p-3 bg-zinc-50 dark:bg-zinc-900 mb-4 font-medium"
-                autoFocus
-                placeholder="Enter new title"
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setRenamingTicket(null)}
-                  className="flex-1 py-3 rounded-xl bg-zinc-100 hover:bg-zinc-200 font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleRenameTicket}
-                  className="flex-1 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 font-bold"
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Edit Score Modal */}
-        {editingTicket && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="w-full max-w-sm bg-white dark:bg-zinc-950 rounded-3xl shadow-xl p-6 border border-zinc-200 dark:border-zinc-800">
-              <h3 className="font-bold mb-4">
-                Edit Score: {editingTicket.title}
-              </h3>
-              <input
-                value={editingTicket.score}
-                onChange={(e) =>
-                  setEditingTicket({ ...editingTicket, score: e.target.value })
-                }
-                className="w-full border rounded-xl p-3 bg-zinc-50 dark:bg-zinc-900 mb-4 font-bold text-center text-xl"
-                autoFocus
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setEditingTicket(null)}
-                  className="flex-1 py-3 rounded-xl bg-zinc-100 hover:bg-zinc-200 font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleUpdateTicketScore}
-                  className="flex-1 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 font-bold"
-                >
-                  Update
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
+
+      {/* Settings Dialog */}
+      <Dialog open={showSettings} onOpenChange={setShowSettings}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Room Settings</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Card Deck (CSV)</label>
+              <Input
+                value={tempDeck}
+                onChange={(e) => setTempDeck(e.target.value)}
+                placeholder="0, 1, 2, 3, 5, 8, 13, ..."
+              />
+              <p className="text-xs text-zinc-500">
+                Comma separated values. E.g: 1, 2, 3, 5, 8
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setShowSettings(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveSettings}>Save Changes</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Score Dialog */}
+      <Dialog
+        open={!!editingTicket}
+        onOpenChange={(open) => !open && setEditingTicket(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Score: {editingTicket?.title}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Input
+              value={editingTicket?.score || ""}
+              onChange={(e) =>
+                setEditingTicket((prev) =>
+                  prev ? { ...prev, score: e.target.value } : null,
+                )
+              }
+              placeholder="Enter new score"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setEditingTicket(null)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateTicketScore}>Update Score</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Ticket Dialog */}
+      <Dialog
+        open={!!renamingTicket}
+        onOpenChange={(open) => !open && setRenamingTicket(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Agenda Item</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Input
+              value={renamingTicket?.title || ""}
+              onChange={(e) =>
+                setRenamingTicket((prev) =>
+                  prev ? { ...prev, title: e.target.value } : null,
+                )
+              }
+              placeholder="Enter new title"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRenameTicket();
+              }}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setRenamingTicket(null)}>
+                Cancel
+              </Button>
+              <Button onClick={handleRenameTicket}>Save</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-export default function SprintPlanioGame({
+export default function SprintPlanioPage({
   params,
 }: {
   params: Promise<{ roomId: string }>;
 }) {
-  const { roomId } = use(params);
+  const resolvedParams = use(params);
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-black">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      }
-    >
-      <SprintPlanioGameContent roomId={roomId} />
+    <Suspense fallback={<div>Loading...</div>}>
+      <SprintPlanioGameContent roomId={resolvedParams.roomId} />
     </Suspense>
   );
 }
