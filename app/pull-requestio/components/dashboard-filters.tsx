@@ -5,34 +5,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MultiSelect, SelectOption } from "./multi-select";
 import { useState } from "react";
+import { useDashboardStore } from "../store";
 
 interface DashboardFiltersProps {
-  searchQuery: string;
-  setSearchQuery: (query: string) => void;
-  selectedBranches: string[];
-  setSelectedBranches: (branches: string[]) => void;
+  prOwners: SelectOption[];
   visibleBranches: string[];
   moreBranches: string[];
-  pinnedBranches: string[];
-  setPinnedBranches: (branches: string[]) => void;
-  prOwners: SelectOption[];
-  selectedOwners: string[];
-  setSelectedOwners: (owners: string[]) => void;
 }
 
 export function DashboardFilters({
-  searchQuery,
-  setSearchQuery,
-  selectedBranches,
-  setSelectedBranches,
+  prOwners,
   visibleBranches,
   moreBranches,
-  pinnedBranches,
-  setPinnedBranches,
-  prOwners,
-  selectedOwners,
-  setSelectedOwners,
 }: DashboardFiltersProps) {
+  const {
+    searchQuery,
+    setSearchQuery,
+    selectedBranches,
+    setSelectedBranches,
+    pinnedBranches,
+    setPinnedBranches,
+    selectedOwners,
+    setSelectedOwners,
+  } = useDashboardStore();
+
   const [showMoreDropdown, setShowMoreDropdown] = useState(false);
 
   const isPriorityBranch = (branch: string) => {
@@ -71,10 +67,6 @@ export function DashboardFilters({
   };
 
   const handleTogglePin = (branch: string) => {
-    // If it's a priority branch, adding it to pinned doesn't change sort order much if logic stays same,
-    // but user might want to explicitly pin non-priority ones.
-    // The original logic allowed pinning any branch.
-
     if (pinnedBranches.includes(branch)) {
       setPinnedBranches(pinnedBranches.filter((b) => b !== branch));
     } else {

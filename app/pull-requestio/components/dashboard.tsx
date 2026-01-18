@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { Octokit } from "octokit";
 import { toast } from "sonner";
 import { RepoInput } from "./repo-input";
@@ -8,40 +8,65 @@ import { PRList } from "./pr-list";
 import { PRModal } from "./pr-modal";
 import { SelectOption } from "./multi-select";
 import { AlertCircle, Search } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { PRListSkeleton } from "./pr-list-skeleton";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-import { User, PullRequest } from "../types";
+import { PullRequest } from "../types";
 import { DashboardHeader } from "./dashboard-header";
 import { DashboardFilters } from "./dashboard-filters";
+import { useDashboardStore } from "../store";
 
 export function Dashboard() {
-  const [token, setToken] = useState("");
-  const [debouncedToken, setDebouncedToken] = useState("");
-  const [user, setUser] = useState<User | null>(null);
-  const [repos, setRepos] = useState<string[]>([]);
-  const [pullRequests, setPullRequests] = useState<PullRequest[]>([]);
+  const {
+    token,
+    setToken,
+    user,
+    setUser,
+    repos,
+    setRepos,
+    pullRequests,
+    setPullRequests,
+    loading,
+    setLoading,
+    error,
+    setError,
+    searchQuery,
+    selectedBranches,
+    pinnedBranches,
+    setPinnedBranches,
+    selectedOwners,
+  } = useDashboardStore();
+
+  const handleSelectPR = (pr: PullRequest) => {
+    // You might want to move selectedPR to store if it's used across multiple components widely
+    // For now, modal is local to Dashboard or could be its own route/store
+    // Let's keep a local state for modal for simplicity as it's UI state,
+    // unless we want to deep link to it.
+    // BUT the requirement was to refactor dashboard to use store.
+    // Let's keep strictly shared state in store.
+  };
+
+  // Actually, keeping local state for selectedPR is fine for now as it doesn't need to be global.
+  // But wait, React Hook Form refactor is next.
+
+  // Re-implementing local state for the modal since it wasn't in the store schema I just created
+  // Re-implementing local state for the modal since it wasn't in the store schema I just created
   const [selectedPR, setSelectedPR] = useState<PullRequest | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
-  const [pinnedBranches, setPinnedBranches] = useState<string[]>([]);
-  const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [debouncedToken, setDebouncedToken] = useState("");
 
   // Load state from localStorage on mount, merging with Env vars
   useEffect(() => {
     const envReposStr = process.env.NEXT_PUBLIC_WATCHED_REPOS;
 
-    // Token priority: LocalStorage only
     const savedToken = localStorage.getItem("github_token");
     if (savedToken) {
       setToken(savedToken);
       setDebouncedToken(savedToken);
     }
 
-    // Repos: Merge Env repos with LocalStorage repos
     const savedRepos = localStorage.getItem("watched_repos");
     let initialRepos: string[] = [];
 
@@ -65,7 +90,7 @@ export function Dashboard() {
     }
 
     setRepos(initialRepos);
-  }, []);
+  }, [setToken, setRepos, setPinnedBranches]);
 
   useEffect(() => {
     localStorage.setItem("github_token", token);
@@ -98,7 +123,7 @@ export function Dashboard() {
       }
     }
     fetchUser();
-  }, [debouncedToken]);
+  }, [debouncedToken, setUser]);
 
   useEffect(() => {
     localStorage.setItem("watched_repos", JSON.stringify(repos));
@@ -136,7 +161,6 @@ export function Dashboard() {
             sort: "created",
             direction: "desc",
           });
-          // Type casting since data might strictly not match our local interface exactly but it's compatible enough for our usage
           return data as unknown as PullRequest[];
         }),
       );
@@ -163,7 +187,7 @@ export function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [repos, debouncedToken]);
+  }, [repos, debouncedToken, setPullRequests, setError, setLoading]);
 
   useEffect(() => {
     if (repos.length > 0) {
@@ -202,7 +226,7 @@ export function Dashboard() {
       b.startsWith("hotfix")
     )
       return 4;
-    // Pinned branches (non-priority)
+
     if (pinnedBranches.includes(branch) && !isPriorityBranch(branch)) return 5;
     return 6;
   };
@@ -290,14 +314,7 @@ export function Dashboard() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
-      <DashboardHeader
-        token={token}
-        setToken={setToken}
-        repoCount={repos.length}
-        onRefresh={fetchPullRequests}
-        loading={loading}
-        user={user}
-      />
+      <DashboardHeader onRefresh={fetchPullRequests} />
 
       {/* Main Content */}
       <main className="mx-auto max-w-7xl p-6">
@@ -322,26 +339,21 @@ export function Dashboard() {
         )}
 
         <DashboardFilters
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          selectedBranches={selectedBranches}
-          setSelectedBranches={setSelectedBranches}
+          prOwners={prOwners}
           visibleBranches={visibleBranches}
           moreBranches={moreBranches}
-          pinnedBranches={pinnedBranches}
-          setPinnedBranches={setPinnedBranches}
-          prOwners={prOwners}
-          selectedOwners={selectedOwners}
-          setSelectedOwners={setSelectedOwners}
         />
 
         {loading ? (
-          <PRList
-            pullRequests={[]}
-            loading={true}
-            onSelectPR={() => {}}
-            onQuickApprove={() => {}}
-          />
+          <div className="space-y-8">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Skeleton className="h-7 w-32" />
+                <Skeleton className="h-6 w-8 rounded-full" />
+              </div>
+              <PRListSkeleton />
+            </div>
+          </div>
         ) : Object.keys(groupedPRs).length > 0 ? (
           <div className="space-y-8">
             {Object.entries(groupedPRs).map(([repoName, prs]) => (
@@ -357,7 +369,7 @@ export function Dashboard() {
                 <PRList
                   pullRequests={prs}
                   loading={false}
-                  onSelectPR={setSelectedPR}
+                  onSelectPR={(pr) => setSelectedPR(pr as any)}
                   onQuickApprove={handleQuickApprove}
                 />
               </div>

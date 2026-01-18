@@ -5,18 +5,44 @@
 ## Features
 
 - **Central Hub**: A unified launchpad for all your applications.
-- **Micro-Apps**:
-  - **Pull Requestio**: A streamlined dashboard for managing GitHub Pull Requests.
-    - Dashboard view of watched repos.
-    - Create, review, and approve PRs.
-    - Search and filter capabilities.
-  - **Sprint Planio**: (Coming Soon) Agile sprint planning tool.
+- **Theme Support**: Built-in Dark Mode and Light Mode.
+
+### Micro-Apps
+
+#### 1. **Pull Requestio**
+
+A streamlined dashboard for managing GitHub Pull Requests.
+
+- **Dashboard**: View PRs across multiple repositories in one place.
+- **Filtering**: Filter by branch, author, repository, or search text.
+- **Smart Grouping**: PRs are grouped by repository for easy scanning.
+- **Quick Links**: Direct access to creating new PRs.
+
+#### 2. **Sprint Planio**
+
+A real-time Agile planning poker application.
+
+- **Multiplayer**: Real-time voting and presence using Supabase.
+- **Session Management**: Create and join rooms easily.
+- **Voting System**:
+  - Classic Fibonacci deck.
+  - Reveal/Hide mechanics.
+  - View snapshots of past votes.
+- **Ticket Management**:
+  - Create, rename, and delete agenda items.
+  - Custom score input for edge cases.
+  - Edit scores and revote on completed tickets.
 
 ## Tech Stack
 
-- **Framework**: [Next.js 16](https://nextjs.org/) (App Router)
+- **Framework**: [Next.js 16](https://nextjs.org/) (App Router & Turbopack)
 - **Language**: TypeScript
-- **Styling**: Tailwind CSS v4
+- **Styling**:
+  - [Tailwind CSS v4](https://tailwindcss.com/)
+  - [Shadcn UI](https://ui.shadcn.com/) (Component Library)
+- **State Management**: [Zustand](https://zustand.herokuapp.com/)
+- **Backend & Realtime**: [Supabase](https://supabase.com/)
+- **Forms**: [React Hook Form](https://react-hook-form.com/) + [Zod](https://zod.dev/)
 - **Icons**: Lucide React
 - **Runtime**: Bun
 
@@ -25,6 +51,7 @@
 ### Prerequisites
 
 - [Bun](https://bun.sh/) (v1.0 or later)
+- A Supabase project for real-time features.
 
 ### Installation
 
@@ -42,11 +69,16 @@
    ```
 
 3. Setup Environment:
-   Create a `.env.local` file in the root directory:
+   Create a `.env.local` file in the root directory and add the following:
 
    ```bash
+   # GitHub Integration
    # Comma-separated list of repositories to watch (optional default)
    NEXT_PUBLIC_WATCHED_REPOS=facebook/react,vercel/next.js
+
+   # Supabase Configuration (Required for Sprint Planio)
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
    ```
 
 4. Run the development server:

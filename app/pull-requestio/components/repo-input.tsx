@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { Plus, X } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
 interface RepoInputProps {
@@ -12,51 +12,58 @@ interface RepoInputProps {
   onRemoveRepo: (repo: string) => void;
 }
 
-export function RepoInput({ repos, onAddRepo, onRemoveRepo }: RepoInputProps) {
-  const [input, setInput] = useState("");
+interface RepoFormData {
+  repo: string;
+}
 
-  const handleAdd = () => {
-    if (input.trim() && !repos.includes(input.trim())) {
-      onAddRepo(input.trim());
-      setInput("");
+export function RepoInput({ repos, onAddRepo, onRemoveRepo }: RepoInputProps) {
+  const { register, handleSubmit, reset } = useForm<RepoFormData>();
+
+  const onSubmit = (data: RepoFormData) => {
+    if (data.repo.trim()) {
+      onAddRepo(data.repo.trim());
+      reset();
     }
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex gap-2">
+    <div className="w-full">
+      <form onSubmit={handleSubmit(onSubmit)} className="mb-4 flex gap-2">
         <Input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+          {...register("repo", { required: true })}
           placeholder="owner/repo (e.g. facebook/react)"
           className="flex-1"
         />
-        <Button onClick={handleAdd}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add
+        <Button
+          type="submit"
+          size="sm"
+          className="bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+        >
+          <Plus className="h-4 w-4 mr-2" /> Add
         </Button>
-      </div>
+      </form>
 
       <div className="flex flex-wrap gap-2">
         {repos.map((repo) => (
           <Badge
             key={repo}
             variant="secondary"
-            className="pl-3 pr-1 py-1 gap-1 text-sm font-normal"
+            className="flex items-center gap-1 pl-2.5 pr-1.5 py-1 text-sm bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 transition-colors"
           >
-            <span>{repo}</span>
-            <Button
-              variant="ghost"
-              size="icon"
+            {repo}
+            <button
               onClick={() => onRemoveRepo(repo)}
-              className="h-5 w-5 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-zinc-400 hover:text-red-500"
+              className="ml-1 rounded-full p-0.5 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
             >
               <X className="h-3 w-3" />
-            </Button>
+            </button>
           </Badge>
         ))}
+        {repos.length === 0 && (
+          <p className="text-sm text-zinc-400 italic">
+            No repositories watched yet.
+          </p>
+        )}
       </div>
     </div>
   );

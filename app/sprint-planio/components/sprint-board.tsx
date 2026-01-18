@@ -7,32 +7,33 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { PokerCard } from "./poker-card";
-import { Player, Room, Ticket } from "../types";
+import { Player } from "../types";
+import { useSprintStore } from "../store";
 
 interface SprintBoardProps {
-  roomId: string; // Needed if we do any local updates or just for props
-  players: Player[];
-  activeTicket?: Ticket;
-  roomState: Room | null;
-  playerId: string | null;
-  selected: string | null;
-  deck: string[];
   onSelect: (value: string) => void;
   onReveal: () => void;
   onSaveScore: (score: string) => void;
 }
 
 export function SprintBoard({
-  players,
-  activeTicket,
-  roomState,
-  playerId,
-  selected,
-  deck,
   onSelect,
   onReveal,
   onSaveScore,
 }: SprintBoardProps) {
+  const {
+    players,
+    tickets,
+    roomState,
+    playerId,
+    selectedVote: selected,
+    deck,
+  } = useSprintStore();
+
+  const activeTicket = tickets.find(
+    (t) => t.id === roomState?.active_ticket_id,
+  );
+
   const isViewOnly = activeTicket?.status === "completed";
   const revealed = isViewOnly ? true : roomState?.is_revealed;
   const [customScore, setCustomScore] = useState("");

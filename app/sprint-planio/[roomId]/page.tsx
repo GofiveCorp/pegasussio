@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use, Suspense, useRef } from "react";
+import { useEffect, use, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -9,6 +9,8 @@ import { SprintHeader } from "../components/sprint-header";
 import { SprintBoard } from "../components/sprint-board";
 import { SprintSidebar } from "../components/sprint-sidebar";
 import { Player, Room, Ticket, VoteSnapshot } from "../types";
+import { useSprintStore } from "../store";
+import { SprintSkeleton } from "../components/sprint-skeleton";
 
 const DEFAULT_DECK = [
   "0",
@@ -30,17 +32,29 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
   const searchParams = useSearchParams();
   const playerName = searchParams.get("name") || "Anonymous";
 
-  // Local State
-  const [selected, setSelected] = useState<string | null>(null);
-
-  // Multiplayer State
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [roomState, setRoomState] = useState<Room | null>(null);
-  const [playerId, setPlayerId] = useState<string | null>(null);
-  const [deck, setDeck] = useState<string[]>(DEFAULT_DECK);
+  // Zustand Store
+  const {
+    setRoomId,
+    setPlayerId,
+    setPlayers,
+    setTickets,
+    setRoomState,
+    setDeck,
+    setSelectedVote,
+    selectedVote: selected,
+    players,
+    tickets,
+    roomState,
+    playerId,
+    deck,
+  } = useSprintStore();
 
   const hasAttemptedJoin = useRef(false);
+
+  // Set initial roomId
+  useEffect(() => {
+    setRoomId(roomId);
+  }, [roomId, setRoomId]);
 
   // Initial Join Logic
   useEffect(() => {
@@ -135,7 +149,15 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
     };
 
     joinRoom();
-  }, [roomId, playerName]);
+  }, [
+    roomId,
+    playerName,
+    setPlayerId,
+    setPlayers,
+    setRoomState,
+    setTickets,
+    setDeck,
+  ]);
 
   // Subscriptions
   useEffect(() => {
@@ -169,7 +191,6 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
           filter: `room_id=eq.${roomId}`,
         },
         (payload) => {
-          // ... (Player updates logic same as before)
           if (payload.eventType === "INSERT") {
             setPlayers((prev) =>
               prev.some((p) => p.id === (payload.new as Player).id)
@@ -236,7 +257,7 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [roomId, deck]); // Added deck to dependency to avoid stale closure if needed, though state update handles it
+  }, [roomId, deck, setPlayers, setRoomState, setTickets, setDeck]);
 
   // Derived Values
   const activeTicket = tickets.find(
@@ -249,14 +270,14 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
     if (isViewOnly || roomState?.is_revealed) return;
 
     if (selected === value) {
-      setSelected(null);
+      setSelectedVote(null);
       if (playerId)
         await supabase
           .from("players")
           .update({ vote: null })
           .eq("id", playerId);
     } else {
-      setSelected(value);
+      setSelectedVote(value);
       if (playerId)
         await supabase
           .from("players")
@@ -270,7 +291,7 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
   };
 
   const handleReset = async () => {
-    setSelected(null);
+    setSelectedVote(null);
     await supabase
       .from("rooms")
       .update({ is_revealed: false })
@@ -321,7 +342,7 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
   };
 
   const handleSetActiveTicket = async (ticket: Ticket) => {
-    setSelected(null);
+    setSelectedVote(null);
 
     const isCompleted = ticket.status === "completed";
     const updates: any = { active_ticket_id: ticket.id };
@@ -385,7 +406,7 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
       .update({ status: "active", score: null, votes_snapshot: null })
       .eq("id", ticket.id);
     await supabase.from("players").update({ vote: null }).eq("room_id", roomId);
-    setSelected(null);
+    setSelectedVote(null);
 
     toast.info(`Revoting on ${ticket.title}`);
   };
@@ -400,32 +421,15 @@ function SprintPlanioGameContent({ roomId }: { roomId: string }) {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black flex flex-col">
-      <SprintHeader
-        roomId={roomId}
-        deck={deck}
-        onSaveSettings={handleSaveSettings}
-        onReset={handleReset}
-      />
+      <SprintHeader onSaveSettings={handleSaveSettings} onReset={handleReset} />
 
       <main className="flex-1 flex flex-col lg:flex-row p-6 gap-8 max-w-7xl mx-auto w-full">
         <SprintBoard
-          roomId={roomId}
-          players={players}
-          activeTicket={activeTicket}
-          roomState={roomState}
-          playerId={playerId}
-          selected={selected}
-          deck={deck}
           onSelect={handleSelect}
           onReveal={handleReveal}
           onSaveScore={handleSaveScore}
         />
         <SprintSidebar
-          tickets={tickets}
-          players={players}
-          activeTicket={activeTicket}
-          roomState={roomState}
-          playerId={playerId}
           onAddTicket={handleAddTicket}
           onDeleteTicket={handleDeleteTicket}
           onRenameTicket={handleRenameTicket}
@@ -445,7 +449,7 @@ export default function SprintPlanioPage({
 }) {
   const resolvedParams = use(params);
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<SprintSkeleton />}>
       <SprintPlanioGameContent roomId={resolvedParams.roomId} />
     </Suspense>
   );

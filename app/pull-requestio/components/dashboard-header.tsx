@@ -7,25 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ModeToggle } from "@/components/mode-toggle";
-import { User } from "../types";
+import { useDashboardStore } from "../store";
 
 interface DashboardHeaderProps {
-  token: string;
-  setToken: (token: string) => void;
-  repoCount: number;
   onRefresh: () => void;
-  loading: boolean;
-  user: User | null;
 }
 
-export function DashboardHeader({
-  token,
-  setToken,
-  repoCount,
-  onRefresh,
-  loading,
-  user,
-}: DashboardHeaderProps) {
+export function DashboardHeader({ onRefresh }: DashboardHeaderProps) {
+  const { token, setToken, repos, loading, user } = useDashboardStore();
+
   return (
     <header className="sticky top-0 z-50 border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-800 dark:bg-zinc-950">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -52,7 +42,7 @@ export function DashboardHeader({
               <ModeToggle />
             </div>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Dashboard for {repoCount} repositories
+              Dashboard for {repos.length} repositories
             </p>
           </div>
         </div>

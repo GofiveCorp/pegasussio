@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { ArrowLeft, RefreshCw, Copy, Check, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,29 +13,48 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { ModeToggle } from "@/components/mode-toggle";
 import { toast } from "sonner";
+import { useSprintStore } from "../store";
+
+const deckSchema = z.object({
+  deckString: z.string().min(1, "Deck cannot be empty"),
+});
+
+type DeckFormData = z.infer<typeof deckSchema>;
 
 interface SprintHeaderProps {
-  roomId: string;
-  deck: string[];
   onSaveSettings: (newDeck: string[]) => void;
   onReset: () => void;
 }
 
-export function SprintHeader({
-  roomId,
-  deck,
-  onSaveSettings,
-  onReset,
-}: SprintHeaderProps) {
+export function SprintHeader({ onSaveSettings, onReset }: SprintHeaderProps) {
+  const { roomId, deck } = useSprintStore();
   const [showSettings, setShowSettings] = useState(false);
-  const [tempDeck, setTempDeck] = useState("");
   const [isCopied, setIsCopied] = useState(false);
 
-  const handleSave = () => {
-    const cleanDeck = tempDeck
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm<DeckFormData>({
+    resolver: zodResolver(deckSchema),
+    defaultValues: {
+      deckString: "",
+    },
+  });
+
+  useEffect(() => {
+    if (showSettings) {
+      setValue("deckString", deck.join(", "));
+    }
+  }, [showSettings, deck, setValue]);
+
+  const onSubmit = (data: DeckFormData) => {
+    const cleanDeck = data.deckString
       .split(",")
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
@@ -47,10 +69,12 @@ export function SprintHeader({
   };
 
   const copyRoomId = () => {
-    navigator.clipboard.writeText(roomId);
-    setIsCopied(true);
-    toast.success("Room ID copied!");
-    setTimeout(() => setIsCopied(false), 2000);
+    if (roomId) {
+      navigator.clipboard.writeText(roomId);
+      setIsCopied(true);
+      toast.success("Room ID copied!");
+      setTimeout(() => setIsCopied(false), 2000);
+    }
   };
 
   return (
@@ -67,7 +91,10 @@ export function SprintHeader({
               Sprint Planio
             </h1>
             <span className="text-xs text-zinc-500 flex items-center gap-1">
-              Room: <span className="font-mono">{roomId.slice(0, 8)}...</span>
+              Room:{" "}
+              <span className="font-mono">
+                {roomId ? `${roomId.slice(0, 8)}...` : "..."}
+              </span>
             </span>
           </div>
         </div>
@@ -76,10 +103,7 @@ export function SprintHeader({
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => {
-              setTempDeck(deck.join(", "));
-              setShowSettings(true);
-            }}
+            onClick={() => setShowSettings(true)}
           >
             <Settings className="h-5 w-5" />
           </Button>
@@ -111,25 +135,25 @@ export function SprintHeader({
           <DialogHeader>
             <DialogTitle>Room Settings</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Card Deck (CSV)</label>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-1 block">
+                Card Deck Values (comma separated)
+              </label>
               <Input
-                value={tempDeck}
-                onChange={(e) => setTempDeck(e.target.value)}
-                placeholder="0, 1, 2, 3, 5, 8, 13, ..."
+                {...register("deckString")}
+                placeholder="e.g. 1, 2, 3, 5, 8, 13"
               />
-              <p className="text-xs text-zinc-500">
-                Comma separated values. E.g: 1, 2, 3, 5, 8
-              </p>
+              {errors.deckString && (
+                <p className="text-sm text-red-500 mt-1">
+                  {errors.deckString.message}
+                </p>
+              )}
             </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setShowSettings(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave}>Save Changes</Button>
-            </div>
-          </div>
+            <DialogFooter>
+              <Button type="submit">Save Changes</Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </>
