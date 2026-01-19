@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { SprintHeader } from "./sprint-header";
@@ -8,6 +8,14 @@ import { SprintBoard } from "./sprint-board";
 import { SprintSidebar } from "./sprint-sidebar";
 import { Player, Room, Ticket, VoteSnapshot } from "../types";
 import { useSprintStore, DEFAULT_DECK } from "../store";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface SprintGameProps {
   roomId: string;
@@ -39,6 +47,9 @@ export function SprintGame({
     playerId,
     deck,
   } = useSprintStore();
+
+  const [showNamePrompt, setShowNamePrompt] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const hasAttemptedJoin = useRef(false);
 
@@ -76,8 +87,6 @@ export function SprintGame({
       // Try session storage first
       const storedPlayerId = sessionStorage.getItem(storageKey);
 
-      let finalPlayerId: string | null = null;
-
       if (storedPlayerId) {
         // Verify existing player
         const existing = initialPlayers.find((p) => p.id === storedPlayerId);
@@ -99,26 +108,76 @@ export function SprintGame({
       }
 
       // Create new player if name provided and not found
-      if (initialPlayerName) {
-        const { data: playerData } = await supabase
-          .from("players")
-          .insert([{ room_id: roomId, name: initialPlayerName }])
-          .select()
-          .single();
-
-        if (playerData) {
-          setPlayerId(playerData.id);
-          setPlayers((prev) => {
-            if (prev.some((p) => p.id === playerData.id)) return prev;
-            return [...prev, playerData];
-          });
-          sessionStorage.setItem(storageKey, playerData.id);
-        }
+      if (initialPlayerName && initialPlayerName !== "Anonymous") {
+        await createPlayer(initialPlayerName);
+      } else {
+        // If name is Anonymous (or missing), show prompt
+        setShowNamePrompt(true);
       }
     };
 
     joinAsPlayer();
   }, [roomId, initialPlayerName, initialPlayers, setPlayerId, setPlayers]);
+
+  const createPlayer = async (name: string) => {
+    const storageKey = `sprint-planio-player:${roomId}`;
+
+    // Check if there are any players in the room to determine leadership
+    const { count } = await supabase
+      .from("players")
+      .select("*", { count: "exact", head: true })
+      .eq("room_id", roomId);
+
+    const isFirstPlayer = count === 0;
+
+    const { data: playerData } = await supabase
+      .from("players")
+      .insert([
+        {
+          room_id: roomId,
+          name: name,
+          is_leader: isFirstPlayer, // Set leader if first
+        },
+      ])
+      .select()
+      .single();
+
+    if (playerData) {
+      setPlayerId(playerData.id);
+      setPlayers((prev) => {
+        if (prev.some((p) => p.id === playerData.id)) return prev;
+        return [...prev, playerData];
+      });
+      sessionStorage.setItem(storageKey, playerData.id);
+      setShowNamePrompt(false);
+    }
+  };
+
+  // Cleanup on unmount or tab close
+  useEffect(() => {
+    const handleUnload = () => {
+      if (playerId) {
+        const payload = JSON.stringify({ playerId });
+        navigator.sendBeacon("/api/sprint/leave", payload);
+      }
+    };
+
+    window.addEventListener("beforeunload", handleUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleUnload);
+      // Also cleanup on component unmount (SPA navigation)
+      if (playerId) {
+        // We use fetch with keepalive here for reliability during unmount
+        fetch("/api/sprint/leave", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playerId }),
+          keepalive: true,
+        });
+      }
+    };
+  }, [playerId]);
 
   // Subscriptions
   useEffect(() => {
@@ -146,28 +205,54 @@ export function SprintGame({
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
           schema: "public",
           table: "players",
           filter: `room_id=eq.${roomId}`,
         },
         (payload) => {
-          if (payload.eventType === "INSERT") {
-            setPlayers((prev) =>
-              prev.some((p) => p.id === (payload.new as Player).id)
-                ? prev
-                : [...prev, payload.new as Player],
-            );
-          } else if (payload.eventType === "UPDATE") {
-            setPlayers((prev) =>
-              prev.map((p) =>
-                p.id === (payload.new as Player).id
-                  ? (payload.new as Player)
-                  : p,
-              ),
-            );
-          } else if (payload.eventType === "DELETE") {
-            setPlayers((prev) => prev.filter((p) => p.id !== payload.old.id));
+          setPlayers((prev) =>
+            prev.some((p) => p.id === (payload.new as Player).id)
+              ? prev
+              : [...prev, payload.new as Player],
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "players",
+          filter: `room_id=eq.${roomId}`,
+        },
+        (payload) => {
+          setPlayers((prev) =>
+            prev.map((p) =>
+              p.id === (payload.new as Player).id ? (payload.new as Player) : p,
+            ),
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "players",
+        },
+        (payload) => {
+          const deletedId = payload.old.id;
+          setPlayers((prev) => prev.filter((p) => p.id !== deletedId));
+
+          if (deletedId === playerId) {
+            toast.error("You have been kicked from the room.");
+            sessionStorage.removeItem(`sprint-planio-player:${roomId}`);
+            setPlayerId(null);
+            // Optional: redirect to home after a delay or show state
+            setTimeout(() => {
+              window.location.href = "/sprint-planio";
+            }, 2000);
           }
         },
       )
@@ -218,13 +303,14 @@ export function SprintGame({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [roomId, deck, setPlayers, setRoomState, setTickets, setDeck]);
+  }, [roomId, deck, playerId, setPlayers, setRoomState, setTickets, setDeck]);
 
   // Derived Values
   const activeTicket = tickets.find(
     (t) => t.id === roomState?.active_ticket_id,
   );
   const isViewOnly = activeTicket?.status === "completed";
+  const isLeader = players.find((p) => p.id === playerId)?.is_leader || false;
 
   // Actions
   const handleSelect = async (value: string) => {
@@ -249,6 +335,24 @@ export function SprintGame({
 
   const handleReveal = async () => {
     await supabase.from("rooms").update({ is_revealed: true }).eq("id", roomId);
+
+    // Auto-save average after delay
+    const numericVotes = players
+      .map((p) => parseFloat(p.vote || "0"))
+      .filter((v) => !isNaN(v) && v > 0);
+
+    if (numericVotes.length > 0) {
+      const avg = (
+        numericVotes.reduce((a, b) => a + b, 0) / numericVotes.length
+      ).toFixed(1);
+
+      const snapshot = players
+        .filter((p) => p.vote)
+        .map((p) => ({ id: p.id, name: p.name, vote: p.vote! }));
+
+      // Immediate auto-save
+      await handleSaveScore(avg);
+    }
   };
 
   const handleReset = async () => {
@@ -298,7 +402,74 @@ export function SprintGame({
     if (error) toast.error("Failed to delete ticket");
   };
 
-  const handleSetActiveTicket = async (ticket: Ticket) => {
+  const handleSaveScore = async (scoreToSave: string) => {
+    if (!roomState?.active_ticket_id || !scoreToSave) return;
+
+    const snapshot: VoteSnapshot[] = players
+      .filter((p) => p.vote)
+      .map((p) => ({ id: p.id, name: p.name, vote: p.vote! }));
+
+    const { error } = await supabase
+      .from("tickets")
+      .update({
+        score: scoreToSave,
+        status: "completed",
+        votes_snapshot: snapshot,
+      })
+      .eq("id", roomState.active_ticket_id);
+
+    if (error) {
+      console.error(error);
+      toast.error("Failed to save score");
+    } else {
+      toast.success("Score saved!");
+
+      // Auto-advance
+      const currentIndex = tickets.findIndex(
+        (t) => t.id === roomState.active_ticket_id,
+      );
+      if (currentIndex !== -1) {
+        // Try to find the next pending ticket
+        const nextTicket = tickets
+          .slice(currentIndex + 1)
+          .find((t) => t.status !== "completed" && !t.score);
+
+        if (nextTicket) {
+          console.log("Auto-advancing to:", nextTicket.title);
+          // Wait a bit to ensuring UI updates or toast is seen
+          setTimeout(() => {
+            handleSetActiveTicket(nextTicket, true);
+          }, 500);
+        } else {
+          console.log("No next ticket found");
+        }
+      }
+    }
+  };
+
+  const handleSetActiveTicket = async (
+    ticket: Ticket,
+    skipAutoSave = false,
+  ) => {
+    // Auto-save if revealed and not skipped
+    if (
+      !skipAutoSave &&
+      roomState?.is_revealed &&
+      roomState.active_ticket_id &&
+      roomState.active_ticket_id !== ticket.id
+    ) {
+      const numericVotes = players
+        .map((p) => parseFloat(p.vote || "0"))
+        .filter((v) => !isNaN(v) && v > 0);
+
+      if (numericVotes.length > 0) {
+        const avg = (
+          numericVotes.reduce((a, b) => a + b, 0) / numericVotes.length
+        ).toFixed(1);
+        await handleSaveScore(avg);
+      }
+    }
+
     setSelectedVote(null);
 
     const isCompleted = ticket.status === "completed";
@@ -320,28 +491,6 @@ export function SprintGame({
         .update({ vote: null })
         .eq("room_id", roomId);
     }
-  };
-
-  const handleSaveScore = async (scoreToSave: string) => {
-    if (!roomState?.active_ticket_id || !scoreToSave) return;
-
-    const snapshot: VoteSnapshot[] = players
-      .filter((p) => p.vote)
-      .map((p) => ({ id: p.id, name: p.name, vote: p.vote! }));
-
-    const { error } = await supabase
-      .from("tickets")
-      .update({
-        score: scoreToSave,
-        status: "completed",
-        votes_snapshot: snapshot,
-      })
-      .eq("id", roomState.active_ticket_id);
-
-    if (error) {
-      console.error(error);
-      toast.error("Failed to save score");
-    } else toast.success("Score saved!");
   };
 
   const handleUpdateTicketScore = async (id: string, score: string) => {
@@ -385,6 +534,7 @@ export function SprintGame({
           onSelect={handleSelect}
           onReveal={handleReveal}
           onSaveScore={handleSaveScore}
+          isLeader={isLeader}
         />
         <SprintSidebar
           onAddTicket={handleAddTicket}
@@ -393,8 +543,73 @@ export function SprintGame({
           onSetActiveTicket={handleSetActiveTicket}
           onRevote={handleRevote}
           onUpdateScore={handleUpdateTicketScore}
+          onTransferLeadership={async (targetPlayerId) => {
+            if (!playerId) return;
+
+            // Optimistic update
+            setPlayers((prev) =>
+              prev.map((p) => {
+                if (p.id === playerId) return { ...p, is_leader: false };
+                if (p.id === targetPlayerId) return { ...p, is_leader: true };
+                return p;
+              }),
+            );
+
+            // DB Update
+            await supabase
+              .from("players")
+              .update({ is_leader: false })
+              .eq("id", playerId);
+            await supabase
+              .from("players")
+              .update({ is_leader: true })
+              .eq("id", targetPlayerId);
+
+            toast.success("Leadership transferred");
+          }}
+          onKickPlayer={async (targetPlayerId) => {
+            const { error } = await supabase
+              .from("players")
+              .delete()
+              .eq("id", targetPlayerId);
+            if (error) {
+              toast.error("Failed to kick player");
+            } else {
+              toast.success("Player kicked");
+            }
+          }}
         />
       </main>
+
+      <Dialog open={showNamePrompt}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enter your name</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              ref={nameInputRef}
+              placeholder="Your Name"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && nameInputRef.current?.value) {
+                  createPlayer(nameInputRef.current.value);
+                }
+              }}
+            />
+          </div>
+          <div className="flex justify-end">
+            <Button
+              onClick={() => {
+                if (nameInputRef.current?.value) {
+                  createPlayer(nameInputRef.current.value);
+                }
+              }}
+            >
+              Join Room
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

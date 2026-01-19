@@ -15,6 +15,7 @@ import {
   Pencil,
   Trash2,
   Send,
+  Crown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +42,8 @@ interface SprintSidebarProps {
   onSetActiveTicket: (ticket: Ticket) => void;
   onRevote: (ticket: Ticket) => void;
   onUpdateScore: (id: string, score: string) => void;
+  onTransferLeadership: (targetPlayerId: string) => void;
+  onKickPlayer: (targetPlayerId: string) => void;
 }
 
 interface TicketFormData {
@@ -54,11 +57,15 @@ export function SprintSidebar({
   onSetActiveTicket,
   onRevote,
   onUpdateScore,
+  onTransferLeadership,
+  onKickPlayer,
 }: SprintSidebarProps) {
   const { tickets, players, roomState, playerId } = useSprintStore();
   const activeTicket = tickets.find(
     (t) => t.id === roomState?.active_ticket_id,
   );
+
+  const isLeader = players.find((p) => p.id === playerId)?.is_leader;
 
   const [showAddTicket, setShowAddTicket] = useState(false);
   const [showJiraImport, setShowJiraImport] = useState(false);
@@ -72,6 +79,14 @@ export function SprintSidebar({
   const [renamingTicket, setRenamingTicket] = useState<{
     id: string;
     title: string;
+  } | null>(null);
+  const [transferTarget, setTransferTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [kickTarget, setKickTarget] = useState<{
+    id: string;
+    name: string;
   } | null>(null);
 
   const onSubmit = (data: TicketFormData) => {
@@ -161,30 +176,34 @@ export function SprintSidebar({
             <List className="h-4 w-4" /> Agenda
           </h3>
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowJiraImport(true)}
-              className="h-6 w-6"
-              title="Import from Jira"
-            >
-              <CloudDownload className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                setShowAddTicket(!showAddTicket);
-                if (!showAddTicket) setTimeout(() => setFocus("title"), 0);
-              }}
-              className="h-6 w-6"
-            >
-              {showAddTicket ? (
-                <X className="h-4 w-4" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-            </Button>
+            {isLeader && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowJiraImport(true)}
+                  className="h-6 w-6"
+                  title="Import from Jira"
+                >
+                  <CloudDownload className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setShowAddTicket(!showAddTicket);
+                    if (!showAddTicket) setTimeout(() => setFocus("title"), 0);
+                  }}
+                  className="h-6 w-6"
+                >
+                  {showAddTicket ? (
+                    <X className="h-4 w-4" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
@@ -229,9 +248,10 @@ export function SprintSidebar({
               return (
                 <div
                   key={ticket.id}
-                  onClick={() => onSetActiveTicket(ticket)}
+                  onClick={() => isLeader && onSetActiveTicket(ticket)}
                   className={cn(
-                    "group relative p-3 rounded-lg border transition-all hover:shadow-sm cursor-pointer",
+                    "group relative p-3 rounded-lg border transition-all hover:shadow-sm",
+                    isLeader && "cursor-pointer",
                     isActive
                       ? "bg-white dark:bg-zinc-900 border-blue-500 shadow-md ring-1 ring-blue-500/20"
                       : isCompleted
@@ -269,7 +289,7 @@ export function SprintSidebar({
                                 : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400",
                           )}
                         >
-                          {isActive
+                          {isActive && !isCompleted
                             ? "Voting Now"
                             : isCompleted
                               ? `Score: ${ticket.score || "-"}`
@@ -279,84 +299,86 @@ export function SprintSidebar({
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {isCompleted && (
-                        <>
-                          {/* Check for Jira Key pattern */}
-                          {ticket.title.match(/^[A-Z]+-\d+:/) && (
+                    {isLeader && (
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {isCompleted && (
+                          <>
+                            {/* Check for Jira Key pattern */}
+                            {ticket.title.match(/^[A-Z]+-\d+:/) && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePostScoreToJira(ticket);
+                                }}
+                                title="Post Score to Jira"
+                              >
+                                <Send className="h-3 w-3" />
+                              </Button>
+                            )}
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-6 w-6 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                              className="h-6 w-6 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handlePostScoreToJira(ticket);
+                                onRevote(ticket);
                               }}
-                              title="Post Score to Jira"
+                              title="Revote"
                             >
-                              <Send className="h-3 w-3" />
+                              <RotateCcw className="h-3 w-3" />
                             </Button>
-                          )}
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-6 w-6 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onRevote(ticket);
-                            }}
-                            title="Revote"
-                          >
-                            <RotateCcw className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingTicket({
-                                id: ticket.id,
-                                title: ticket.title,
-                                score: ticket.score || "",
-                              });
-                            }}
-                            title="Edit Score"
-                          >
-                            <Edit3 className="h-3 w-3" />
-                          </Button>
-                        </>
-                      )}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingTicket({
+                                  id: ticket.id,
+                                  title: ticket.title,
+                                  score: ticket.score || "",
+                                });
+                              }}
+                              title="Edit Score"
+                            >
+                              <Edit3 className="h-3 w-3" />
+                            </Button>
+                          </>
+                        )}
 
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-6 w-6 text-zinc-400 hover:text-blue-600"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRenamingTicket({
-                            id: ticket.id,
-                            title: ticket.title,
-                          });
-                        }}
-                        title="Rename"
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 text-zinc-400 hover:text-blue-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRenamingTicket({
+                              id: ticket.id,
+                              title: ticket.title,
+                            });
+                          }}
+                          title="Rename"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
 
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-6 w-6 text-zinc-400 hover:text-red-600 hover:bg-red-50"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteTicket(ticket.id);
-                        }}
-                        title="Delete"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 text-zinc-400 hover:text-red-600 hover:bg-red-50"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteTicket(ticket.id);
+                          }}
+                          title="Delete"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -400,11 +422,37 @@ export function SprintSidebar({
                       </span>
                     )}
                   </div>
+                  {p.is_leader && (
+                    <Crown className="h-3 w-3 text-yellow-500 fill-yellow-500" />
+                  )}
                 </div>
                 {p.vote ? (
                   <CheckCircle className="h-4 w-4 text-green-500" />
                 ) : (
                   <span className="h-2 w-2 rounded-full bg-zinc-200 dark:bg-zinc-700" />
+                )}
+                {isLeader && p.id !== playerId && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="ml-auto text-[10px] h-6 px-2 text-zinc-400 hover:text-yellow-600"
+                      onClick={() => {
+                        setTransferTarget({ id: p.id, name: p.name });
+                      }}
+                    >
+                      Make Leader
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 text-zinc-400 hover:text-red-600 ml-1"
+                      title="Kick Player"
+                      onClick={() => setKickTarget({ id: p.id, name: p.name })}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </>
                 )}
               </div>
             ))}
@@ -467,6 +515,82 @@ export function SprintSidebar({
               Cancel
             </Button>
             <Button onClick={handleRename}>Rename</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!transferTarget}
+        onOpenChange={(open) => !open && setTransferTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Transfer Leadership</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 text-zinc-600 dark:text-zinc-400">
+            Are you sure you want to pass leadership to{" "}
+            <span className="font-semibold text-zinc-900 dark:text-zinc-50">
+              {transferTarget?.name}
+            </span>
+            ?
+            <br />
+            <span className="text-xs text-red-500 mt-2 block">
+              You will lose administrative access to this room.
+            </span>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setTransferTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (transferTarget) {
+                  onTransferLeadership(transferTarget.id);
+                  setTransferTarget(null);
+                }
+              }}
+            >
+              Transfer Leadership
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!kickTarget}
+        onOpenChange={(open) => !open && setKickTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Kick Player</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 text-zinc-600 dark:text-zinc-400">
+            Are you sure you want to kick{" "}
+            <span className="font-semibold text-zinc-900 dark:text-zinc-50">
+              {kickTarget?.name}
+            </span>
+            ?
+            <br />
+            <span className="text-xs text-red-500 mt-2 block">
+              They will be removed from the room immediately.
+            </span>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setKickTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (kickTarget) {
+                  onKickPlayer(kickTarget.id);
+                  setKickTarget(null);
+                }
+              }}
+            >
+              Kick Player
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
