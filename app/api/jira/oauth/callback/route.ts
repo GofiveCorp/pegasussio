@@ -73,15 +73,15 @@ export async function GET(req: NextRequest) {
           <p>Connecting to ${siteName}...</p>
           <script>
             // Send tokens to main window
-            window.opener.postMessage(
-              {
-                type: 'JIRA_OAUTH_SUCCESS',
-                accessToken: '${access_token}',
-                cloudId: '${cloudId}',
-                siteName: '${siteName}'
-              },
-              window.location.origin
-            );
+            // Send tokens to main window
+            const payload = ${JSON.stringify({
+              type: "JIRA_OAUTH_SUCCESS",
+              accessToken: access_token,
+              cloudId: cloudId,
+              siteName: siteName,
+            })};
+            
+            window.opener.postMessage(payload, window.location.origin);
             // Close popup
             setTimeout(() => window.close(), 1000);
           </script>
