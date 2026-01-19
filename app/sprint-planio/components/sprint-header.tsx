@@ -5,7 +5,14 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { ArrowLeft, RefreshCw, Copy, Check, Settings } from "lucide-react";
+import {
+  ArrowLeft,
+  RefreshCw,
+  Copy,
+  Check,
+  Settings,
+  Link as LinkIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,6 +41,7 @@ export function SprintHeader({ onSaveSettings, onReset }: SprintHeaderProps) {
   const { roomId, deck } = useSprintStore();
   const [showSettings, setShowSettings] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isLinkCopied, setIsLinkCopied] = useState(false);
 
   const {
     register,
@@ -77,6 +85,16 @@ export function SprintHeader({ onSaveSettings, onReset }: SprintHeaderProps) {
     }
   };
 
+  const copyRoomLink = () => {
+    if (typeof window !== "undefined") {
+      const url = window.location.origin + window.location.pathname;
+      navigator.clipboard.writeText(url);
+      setIsLinkCopied(true);
+      toast.success("Room Link copied!");
+      setTimeout(() => setIsLinkCopied(false), 2000);
+    }
+  };
+
   return (
     <>
       <header className="sticky top-0 z-50 flex items-center justify-between border-b border-zinc-200 bg-white/80 px-4 py-3 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/80">
@@ -106,6 +124,18 @@ export function SprintHeader({ onSaveSettings, onReset }: SprintHeaderProps) {
             onClick={() => setShowSettings(true)}
           >
             <Settings className="h-5 w-5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={copyRoomLink}
+            title="Copy Room Link"
+          >
+            {isLinkCopied ? (
+              <Check className="h-5 w-5" />
+            ) : (
+              <LinkIcon className="h-5 w-5" />
+            )}
           </Button>
           <Button
             variant="ghost"

@@ -3,18 +3,46 @@ import axios from "axios";
 
 export async function POST(req: NextRequest) {
   try {
-    const { domain, email, token, issueKey, comment } = await req.json();
+    const {
+      domain,
+      email,
+      token,
+      issueKey,
+      comment,
+      authType,
+      accessToken,
+      cloudId,
+    } = await req.json();
 
-    if (!domain || !email || !token || !issueKey || !comment) {
+    if (!issueKey || !comment) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 },
       );
     }
 
-    const authHeader = `Basic ${Buffer.from(`${email}:${token}`).toString("base64")}`;
+    let jiraUrl = "";
+    let authHeader = "";
 
-    const jiraUrl = `https://${domain}/rest/api/3/issue/${issueKey}/comment`;
+    if (authType === "oauth") {
+      if (!accessToken || !cloudId) {
+        return NextResponse.json(
+          { error: "Missing OAuth credentials" },
+          { status: 400 },
+        );
+      }
+      jiraUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${issueKey}/comment`;
+      authHeader = `Bearer ${accessToken}`;
+    } else {
+      if (!domain || !email || !token) {
+        return NextResponse.json(
+          { error: "Missing Jira credentials" },
+          { status: 400 },
+        );
+      }
+      authHeader = `Basic ${Buffer.from(`${email}:${token}`).toString("base64")}`;
+      jiraUrl = `https://${domain}/rest/api/3/issue/${issueKey}/comment`;
+    }
 
     const bodyData = {
       body: {

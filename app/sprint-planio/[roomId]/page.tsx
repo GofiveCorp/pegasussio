@@ -9,24 +9,8 @@ import { SprintHeader } from "../components/sprint-header";
 import { SprintBoard } from "../components/sprint-board";
 import { SprintSidebar } from "../components/sprint-sidebar";
 import { Player, Room, Ticket, VoteSnapshot } from "../types";
-import { useSprintStore } from "../store";
+import { useSprintStore, DEFAULT_DECK } from "../store";
 import { SprintSkeleton } from "../components/sprint-skeleton";
-
-const DEFAULT_DECK = [
-  "0",
-  "1",
-  "2",
-  "3",
-  "5",
-  "8",
-  "13",
-  "21",
-  "34",
-  "55",
-  "89",
-  "?",
-  "☕",
-];
 
 function SprintPlanioGameContent({ roomId }: { roomId: string }) {
   const searchParams = useSearchParams();

@@ -108,27 +108,41 @@ export function SprintSidebar({
       return;
     }
 
-    const domain = localStorage.getItem("jira_domain");
-    const email = localStorage.getItem("jira_email");
-    const token = localStorage.getItem("jira_token");
+    const authType = localStorage.getItem("jira_auth_type") || "basic";
+    const payload: any = {
+      issueKey,
+      comment: `Sprint Poker Score: ${score}\n\nPowered by Sprint Planio 🚀`,
+    };
 
-    if (!domain || !email || !token) {
-      toast.error(
-        "Missing Jira credentials. Please open Import dialog to save them.",
-      );
-      return;
+    if (authType === "oauth") {
+      payload.authType = "oauth";
+      payload.accessToken = localStorage.getItem("jira_access_token");
+      payload.cloudId = localStorage.getItem("jira_cloud_id");
+
+      if (!payload.accessToken) {
+        toast.error(
+          "Missing Jira OAuth token. Please reconnect in Import dialog.",
+        );
+        return;
+      }
+    } else {
+      payload.authType = "basic";
+      payload.domain = localStorage.getItem("jira_domain");
+      payload.email = localStorage.getItem("jira_email");
+      payload.token = localStorage.getItem("jira_token");
+
+      if (!payload.domain || !payload.email || !payload.token) {
+        toast.error(
+          "Missing Jira credentials. Please open Import dialog to save them.",
+        );
+        return;
+      }
     }
 
     const toastId = toast.loading("Posting score to Jira...");
 
     try {
-      await axios.post("/api/jira/comment", {
-        domain,
-        email,
-        token,
-        issueKey,
-        comment: `Sprint Poker Score: ${score}\n\nPowered by Sprint Planio 🚀`,
-      });
+      await axios.post("/api/jira/comment", payload);
       toast.success("Score posted to Jira!", { id: toastId });
     } catch (error: any) {
       console.error(error);
