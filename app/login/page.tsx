@@ -1,7 +1,9 @@
 "use client";
 
-import { createClient } from "@/utils/supabase/client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardHeader,
@@ -10,29 +12,39 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { toast } from "sonner";
-import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
-  const supabase = createClient();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [password, setPassword] = useState("");
 
-  const handleLogin = async () => {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
+
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "azure",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-          scopes: "email profile openid offline_access",
-        },
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, displayName, password }),
       });
-      if (error) {
-        toast.error(error.message);
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || "Login failed");
         setLoading(false);
+        return;
       }
-    } catch (e) {
-      console.error(e);
+
+      toast.success("Login successful!");
+      router.push("/");
+      router.refresh();
+    } catch (error) {
+      console.error(error);
       toast.error("An unexpected error occurred");
       setLoading(false);
     }
@@ -42,53 +54,93 @@ export default function LoginPage() {
     <div className="flex h-screen w-full items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-4">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center">
-          <div className="mx-auto bg-blue-100 dark:bg-blue-900/30 p-3 rounded-full mb-4 w-fit">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-blue-600 dark:text-blue-400 h-8 w-8"
-            >
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
+          <div className="mx-auto bg-zinc-100 dark:bg-zinc-800 p-3 rounded-full mb-4 w-fit">
+            <span className="text-2xl">🔒</span>
           </div>
-          <CardTitle className="text-2xl font-bold">
-            Sign in to Pegasussio
-          </CardTitle>
+          <CardTitle className="text-2xl font-bold">Sign in</CardTitle>
           <CardDescription>
-            Authentication required to access this application
+            Enter your credentials to access Pegasussio
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex justify-center pb-8">
+        <CardContent>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Email</label>
+              <Input
+                type="email"
+                placeholder="name@gofive.co.th"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Display Name
+              </label>
+              <Input
+                placeholder="e.g. John Doe (Software Engineer)"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                disabled={loading}
+              />
+              <p className="text-xs text-zinc-500 mt-1">
+                This name will be used in Sprint Planio.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Password</label>
+              <Input
+                type="password"
+                placeholder="Enter password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+            <Button
+              type="submit"
+              className="w-full mt-2"
+              disabled={loading || !email || !displayName || !password}
+            >
+              {loading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Sign In
+            </Button>
+          </form>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-zinc-200 dark:border-zinc-700" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white dark:bg-zinc-950 px-2 text-zinc-500">
+                Or continue with
+              </span>
+            </div>
+          </div>
+
           <Button
-            onClick={handleLogin}
-            className="w-full h-12 text-base bg-[#0078D4] hover:bg-[#006cbd]"
-            disabled={loading}
+            variant="outline"
+            className="w-full relative h-11"
+            disabled={true}
+            title="Microsoft Login is currently disabled"
           >
-            {loading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <svg
-                className="mr-2 h-5 w-5"
-                viewBox="0 0 23 23"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path fill="#f35325" d="M1 1h10v10H1z" />
-                <path fill="#81bc06" d="M12 1h10v10H12z" />
-                <path fill="#05a6f0" d="M1 12h10v10H1z" />
-                <path fill="#ffba08" d="M12 12h10v10H12z" />
-              </svg>
-            )}
-            Sign in with Microsoft
+            <svg
+              className="mr-2 h-5 w-5 absolute left-4"
+              viewBox="0 0 23 23"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path fill="#f35325" d="M1 1h10v10H1z" />
+              <path fill="#81bc06" d="M12 1h10v10H12z" />
+              <path fill="#05a6f0" d="M1 12h10v10H1z" />
+              <path fill="#ffba08" d="M12 12h10v10H12z" />
+            </svg>
+            <span>Sign in with Microsoft</span>
+            <span className="ml-2 text-xs bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full text-zinc-500">
+              Disabled
+            </span>
           </Button>
         </CardContent>
       </Card>

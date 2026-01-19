@@ -12,6 +12,7 @@ import {
   Check,
   Settings,
   Link as LinkIcon,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -156,6 +157,18 @@ export function SprintHeader({ onSaveSettings, onReset }: SprintHeaderProps) {
             className="gap-2"
           >
             <RefreshCw className="h-4 w-4" /> Reset
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={async () => {
+              await fetch("/api/auth/logout", { method: "POST" });
+              window.location.href = "/login";
+            }}
+            title="Logout"
+            className="text-zinc-500 hover:text-red-500"
+          >
+            <LogOut className="h-5 w-5" />
           </Button>
         </div>
       </header>

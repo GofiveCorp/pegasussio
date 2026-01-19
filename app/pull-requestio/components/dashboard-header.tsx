@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, Key, Plus, RefreshCw } from "lucide-react";
+import { ArrowLeft, Key, Plus, RefreshCw, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -94,6 +94,19 @@ export function DashboardHeader({ onRefresh }: DashboardHeaderProps) {
             className="rounded-full"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={async () => {
+              await fetch("/api/auth/logout", { method: "POST" });
+              window.location.href = "/login";
+            }}
+            title="Logout"
+            className="rounded-full text-zinc-500 hover:text-red-500"
+          >
+            <LogOut className="h-4 w-4" />
           </Button>
         </div>
       </div>
