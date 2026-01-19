@@ -23,21 +23,7 @@ interface SprintState {
   // but Zustand selectors are good for derived state.
 }
 
-const DEFAULT_DECK = [
-  "0",
-  "1",
-  "2",
-  "3",
-  "5",
-  "8",
-  "13",
-  "21",
-  "34",
-  "55",
-  "89",
-  "?",
-  "☕",
-];
+export const DEFAULT_DECK = ["1", "2", "3", "5"];
 
 export const useSprintStore = create<SprintState>((set) => ({
   roomId: null,
