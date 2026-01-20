@@ -13,13 +13,16 @@ import { useSprintStore } from "../store";
 interface SprintBoardProps {
   onSelect: (value: string) => void;
   onReveal: () => void;
+
   onSaveScore: (score: string) => void;
+  isLeader: boolean;
 }
 
 export function SprintBoard({
   onSelect,
   onReveal,
   onSaveScore,
+  isLeader,
 }: SprintBoardProps) {
   const {
     players,
@@ -109,6 +112,11 @@ export function SprintBoard({
                     p.vote &&
                     "border-blue-600 bg-white dark:bg-zinc-900 dark:border-blue-500 rotate-y-0",
                   revealed &&
+                    p.vote &&
+                    isLeader &&
+                    !isViewOnly &&
+                    "cursor-pointer hover:scale-105 hover:ring-2 hover:ring-green-400",
+                  revealed &&
                     !p.vote &&
                     "border-zinc-200 bg-zinc-100 dark:bg-zinc-800 dark:border-zinc-700 opacity-50",
                   !revealed &&
@@ -118,6 +126,11 @@ export function SprintBoard({
                     !p.vote &&
                     "border-dashed border-zinc-300 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/50",
                 )}
+                onClick={() => {
+                  if (revealed && p.vote && isLeader && !isViewOnly) {
+                    onSaveScore(p.vote);
+                  }
+                }}
               >
                 {revealed ? (
                   <span
@@ -180,7 +193,24 @@ export function SprintBoard({
           {Boolean(revealed) &&
             (Boolean(displayAverage) || Boolean(average)) && (
               <div className="flex flex-col items-center animate-in zoom-in duration-300">
-                <div className="bg-blue-50 dark:bg-blue-900/20 px-8 py-4 rounded-3xl border border-blue-100 dark:border-blue-800 flex flex-col items-center mb-4">
+                <div
+                  className={cn(
+                    "bg-blue-50 dark:bg-blue-900/20 px-8 py-4 rounded-3xl border border-blue-100 dark:border-blue-800 flex flex-col items-center mb-4 transition-all duration-200",
+                    isLeader &&
+                      !isViewOnly &&
+                      "cursor-pointer hover:scale-105 hover:bg-blue-100 dark:hover:bg-blue-900/40 hover:shadow-lg active:scale-95",
+                  )}
+                  onClick={() => {
+                    if (isLeader && !isViewOnly && displayAverage) {
+                      onSaveScore(displayAverage);
+                    }
+                  }}
+                  title={
+                    isLeader && !isViewOnly
+                      ? "Click to save as final score"
+                      : undefined
+                  }
+                >
                   <p className="text-sm text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wider mb-1">
                     {isViewOnly ? "Final Score" : "Average"}
                   </p>
@@ -188,25 +218,6 @@ export function SprintBoard({
                     {displayAverage}
                   </p>
                 </div>
-
-                {/* Save Custom Score */}
-                {activeTicket && !activeTicket.score && !isViewOnly && (
-                  <div className="flex items-center gap-2 bg-white dark:bg-zinc-900 p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-lg">
-                    <Input
-                      type="text"
-                      value={customScore}
-                      onChange={(e) => setCustomScore(e.target.value)}
-                      className="w-20 text-center font-bold text-lg border-none focus-visible:ring-0 shadow-none bg-transparent"
-                      placeholder={average || "-"}
-                    />
-                    <Button
-                      onClick={() => onSaveScore(customScore || average || "")}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      Save
-                    </Button>
-                  </div>
-                )}
               </div>
             )}
         </div>
@@ -225,11 +236,23 @@ export function SprintBoard({
               key={val}
               value={val}
               selected={selected === val}
-              onClick={() => onSelect(val)}
+              onClick={() => {
+                if (revealed && !isViewOnly) {
+                  if (isLeader) onSaveScore(val);
+                } else {
+                  onSelect(val);
+                }
+              }}
               className={cn(
                 Boolean(revealed) &&
                   selected !== val &&
+                  !isViewOnly &&
+                  "opacity-40 grayscale hover:grayscale-0 hover:opacity-100 cursor-pointer",
+                Boolean(revealed) &&
+                  selected !== val &&
+                  isViewOnly &&
                   "opacity-25 grayscale cursor-not-allowed",
+
                 Boolean(revealed) && selected === val && "ring-4 ring-blue-500",
               )}
             />

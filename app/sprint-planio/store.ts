@@ -12,7 +12,7 @@ interface SprintState {
 
   // Actions
   setRoomId: (id: string) => void;
-  setPlayerId: (id: string) => void;
+  setPlayerId: (id: string | null) => void;
   setPlayers: (players: Player[] | ((prev: Player[]) => Player[])) => void;
   setTickets: (tickets: Ticket[] | ((prev: Ticket[]) => Ticket[])) => void;
   setRoomState: (room: Room) => void;
