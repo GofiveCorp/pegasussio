@@ -126,7 +126,7 @@ export function SprintSidebar({
     const authType = localStorage.getItem("jira_auth_type") || "basic";
     const payload: any = {
       issueKey,
-      comment: `Sprint Poker Score: ${score}\n\nPowered by Sprint Planio 🚀`,
+      score: score,
     };
 
     if (authType === "oauth") {
@@ -154,14 +154,14 @@ export function SprintSidebar({
       }
     }
 
-    const toastId = toast.loading("Posting score to Jira...");
+    const toastId = toast.loading("Updating Jira issue...");
 
     try {
-      await axios.post("/api/jira/comment", payload);
-      toast.success("Score posted to Jira!", { id: toastId });
+      await axios.post("/api/jira/update-issue", payload);
+      toast.success("Jira issue updated!", { id: toastId });
     } catch (error: any) {
       console.error(error);
-      toast.error(error.response?.data?.error || "Failed to post score", {
+      toast.error(error.response?.data?.error || "Failed to update issue", {
         id: toastId,
       });
     }

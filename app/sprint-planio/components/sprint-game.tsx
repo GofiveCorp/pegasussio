@@ -429,19 +429,32 @@ export function SprintGame({
         (t) => t.id === roomState.active_ticket_id,
       );
       if (currentIndex !== -1) {
-        // Try to find the next pending ticket
-        const nextTicket = tickets
-          .slice(currentIndex + 1)
-          .find((t) => t.status !== "completed" && !t.score);
+        // Optimized O(N) search with wrap-around
+        let nextTicket: Ticket | undefined;
+
+        // 1. Search forward from next index
+        for (let i = currentIndex + 1; i < tickets.length; i++) {
+          if (tickets[i].status !== "completed" && !tickets[i].score) {
+            nextTicket = tickets[i];
+            break;
+          }
+        }
+
+        // 2. Wrap-around search from start
+        if (!nextTicket) {
+          for (let i = 0; i < currentIndex; i++) {
+            if (tickets[i].status !== "completed" && !tickets[i].score) {
+              nextTicket = tickets[i];
+              break;
+            }
+          }
+        }
 
         if (nextTicket) {
-          console.log("Auto-advancing to:", nextTicket.title);
           // Wait a bit to ensuring UI updates or toast is seen
           setTimeout(() => {
             handleSetActiveTicket(nextTicket, true);
-          }, 500);
-        } else {
-          console.log("No next ticket found");
+          }, 300);
         }
       }
     }
