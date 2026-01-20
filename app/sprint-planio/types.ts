@@ -3,6 +3,7 @@ export interface Player {
   name: string;
   vote: string | null;
   is_spectator: boolean;
+  is_leader: boolean;
 }
 
 export interface Room {

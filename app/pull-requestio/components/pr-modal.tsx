@@ -153,7 +153,7 @@ export function PRModal({ pr, token, onClose, onApprove }: PRModalProps) {
 
   return (
     <Dialog open={!!pr} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 gap-0">
+      <DialogContent className="sm:max-w-6xl max-h-[90vh] flex flex-col p-0 gap-0">
         <DialogHeader className="p-4 border-b border-zinc-200 dark:border-zinc-800">
           <DialogTitle className="flex items-start justify-between">
             <div className="flex flex-col gap-1">
