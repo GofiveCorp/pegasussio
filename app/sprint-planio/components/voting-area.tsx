@@ -1,78 +1,148 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { memo, useMemo } from "react";
 import { Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { PokerCard } from "./poker-card";
 import { Player } from "../types";
 import { useSprintStore } from "../store";
 
-interface SprintBoardProps {
-  onSelect: (value: string) => void;
-  onReveal: () => void;
-
-  onSaveScore: (score: string) => void;
-  isLeader: boolean;
-}
-
-export function SprintBoard({
-  onSelect,
-  onReveal,
-  onSaveScore,
+// Memoized player card to avoid unnecessary re-renders
+const PlayerCard = memo(function PlayerCard({
+  player,
+  revealed,
   isLeader,
-}: SprintBoardProps) {
-  const {
-    players,
-    tickets,
-    roomState,
-    playerId,
-    selectedVote: selected,
-    deck,
-  } = useSprintStore();
+  isViewOnly,
+  isSelf,
+  onClickVote,
+}: {
+  player: Player;
+  revealed: boolean;
+  isLeader: boolean;
+  isViewOnly: boolean;
+  isSelf: boolean;
+  onClickVote: (vote: string) => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-2 group">
+      <div
+        className={cn(
+          "relative h-28 w-20 sm:h-32 sm:w-24 rounded-xl border-2 flex items-center justify-center shadow-xl transition-all duration-300 transform",
+          revealed &&
+            player.vote &&
+            "border-blue-600 bg-white dark:bg-zinc-900 dark:border-blue-500",
+          revealed &&
+            player.vote &&
+            isLeader &&
+            !isViewOnly &&
+            "cursor-pointer hover:scale-105 hover:ring-2 hover:ring-green-400",
+          revealed &&
+            !player.vote &&
+            "border-zinc-200 bg-zinc-100 dark:bg-zinc-800 dark:border-zinc-700 opacity-50",
+          !revealed &&
+            player.vote &&
+            "border-blue-600 bg-blue-600 dark:border-blue-500 dark:bg-blue-600 scale-105",
+          !revealed &&
+            !player.vote &&
+            "border-dashed border-zinc-300 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/50",
+        )}
+        onClick={() => {
+          if (revealed && player.vote && isLeader && !isViewOnly) {
+            onClickVote(player.vote);
+          }
+        }}
+      >
+        {revealed ? (
+          <span
+            className={cn(
+              "text-3xl sm:text-4xl font-bold",
+              player.vote
+                ? "text-blue-600 dark:text-blue-500"
+                : "text-zinc-400",
+            )}
+          >
+            {player.vote ?? "-"}
+          </span>
+        ) : player.vote ? (
+          <span className="text-white font-bold opacity-50 tracking-widest text-[10px]">
+            READY
+          </span>
+        ) : (
+          <span className="text-zinc-300 dark:text-zinc-700 text-xl font-bold animate-pulse">
+            ?
+          </span>
+        )}
+      </div>
+      <span
+        className={cn(
+          "text-xs sm:text-sm font-medium truncate max-w-[100px]",
+          isSelf ? "text-blue-600" : "text-zinc-500",
+        )}
+      >
+        {player.name} {isSelf && "(You)"}
+      </span>
+    </div>
+  );
+});
 
-  const activeTicket = tickets.find(
-    (t) => t.id === roomState?.active_ticket_id,
+export function VotingArea() {
+  const players = useSprintStore((s) => s.players);
+  const tickets = useSprintStore((s) => s.tickets);
+  const roomState = useSprintStore((s) => s.roomState);
+  const playerId = useSprintStore((s) => s.playerId);
+  const selectedVote = useSprintStore((s) => s.selectedVote);
+  const deck = useSprintStore((s) => s.deck);
+
+  const activeTicket = useMemo(
+    () => tickets.find((t) => t.id === roomState?.active_ticket_id),
+    [tickets, roomState?.active_ticket_id],
   );
 
   const isViewOnly = activeTicket?.status === "completed";
   const revealed = isViewOnly ? true : roomState?.is_revealed;
-  const [customScore, setCustomScore] = useState("");
+  const isLeader = useMemo(
+    () => players.find((p) => p.id === playerId)?.is_leader || false,
+    [players, playerId],
+  );
 
-  const displayPlayers =
-    isViewOnly && activeTicket?.votes_snapshot
-      ? activeTicket.votes_snapshot.map(
-          (s) =>
-            ({
-              id: s.id,
-              name: s.name,
-              vote: s.vote,
-              is_spectator: false,
-            }) as Player,
-        )
-      : players;
+  const displayPlayers = useMemo(
+    () =>
+      isViewOnly && activeTicket?.votes_snapshot
+        ? activeTicket.votes_snapshot.map(
+            (s) =>
+              ({
+                id: s.id,
+                name: s.name,
+                vote: s.vote,
+                is_spectator: false,
+                is_leader: false,
+              }) as Player,
+          )
+        : players,
+    [isViewOnly, activeTicket?.votes_snapshot, players],
+  );
 
-  const numericVotes = displayPlayers
-    .map((p) => parseFloat(p.vote || "0"))
-    .filter((v) => !isNaN(v) && v > 0);
+  const { average, displayAverage } = useMemo(() => {
+    const numericVotes = displayPlayers
+      .map((p) => parseFloat(p.vote || "0"))
+      .filter((v) => !isNaN(v) && v > 0);
 
-  const average =
-    numericVotes.length > 0
-      ? (numericVotes.reduce((a, b) => a + b, 0) / numericVotes.length).toFixed(
-          1,
-        )
-      : null;
+    const avg =
+      numericVotes.length > 0
+        ? (
+            numericVotes.reduce((a, b) => a + b, 0) / numericVotes.length
+          ).toFixed(1)
+        : null;
 
-  const displayAverage =
-    isViewOnly && activeTicket?.score ? activeTicket.score : average;
+    const display =
+      isViewOnly && activeTicket?.score ? activeTicket.score : avg;
 
-  useEffect(() => {
-    if (revealed && average && !isViewOnly) {
-      setCustomScore(average);
-    }
-  }, [revealed, average, isViewOnly]);
+    return { average: avg, displayAverage: display };
+  }, [displayPlayers, isViewOnly, activeTicket?.score]);
+
+  const store = useSprintStore.getState;
 
   return (
     <div className="flex-1 flex flex-col items-center gap-8">
@@ -101,69 +171,19 @@ export function SprintBoard({
       </div>
 
       <div className="flex-1 w-full flex flex-col items-center justify-center min-h-[300px]">
-        {/* Players Grid (or Snapshots) */}
+        {/* Players Grid */}
         <div className="flex flex-wrap justify-center gap-6 animate-in fade-in zoom-in duration-300 mb-8">
           {displayPlayers.map((p) => (
-            <div key={p.id} className="flex flex-col items-center gap-2 group">
-              <div
-                className={cn(
-                  "relative h-28 w-20 sm:h-32 sm:w-24 rounded-xl border-2 flex items-center justify-center shadow-xl transition-all duration-300 transform",
-                  revealed &&
-                    p.vote &&
-                    "border-blue-600 bg-white dark:bg-zinc-900 dark:border-blue-500 rotate-y-0",
-                  revealed &&
-                    p.vote &&
-                    isLeader &&
-                    !isViewOnly &&
-                    "cursor-pointer hover:scale-105 hover:ring-2 hover:ring-green-400",
-                  revealed &&
-                    !p.vote &&
-                    "border-zinc-200 bg-zinc-100 dark:bg-zinc-800 dark:border-zinc-700 opacity-50",
-                  !revealed &&
-                    p.vote &&
-                    "border-blue-600 bg-blue-600 dark:border-blue-500 dark:bg-blue-600 scale-105",
-                  !revealed &&
-                    !p.vote &&
-                    "border-dashed border-zinc-300 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/50",
-                )}
-                onClick={() => {
-                  if (revealed && p.vote && isLeader && !isViewOnly) {
-                    onSaveScore(p.vote);
-                  }
-                }}
-              >
-                {revealed ? (
-                  <span
-                    className={cn(
-                      "text-3xl sm:text-4xl font-bold",
-                      p.vote
-                        ? "text-blue-600 dark:text-blue-500"
-                        : "text-zinc-400",
-                    )}
-                  >
-                    {p.vote ?? "-"}
-                  </span>
-                ) : p.vote ? (
-                  <span className="text-white font-bold opacity-50 tracking-widest text-[10px]">
-                    READY
-                  </span>
-                ) : (
-                  <span className="text-zinc-300 dark:text-zinc-700 text-xl font-bold animate-pulse">
-                    ?
-                  </span>
-                )}
-              </div>
-              <span
-                className={cn(
-                  "text-xs sm:text-sm font-medium truncate max-w-[100px]",
-                  p.id === playerId ? "text-blue-600" : "text-zinc-500",
-                )}
-              >
-                {p.name} {p.id === playerId && "(You)"}
-              </span>
-            </div>
+            <PlayerCard
+              key={p.id}
+              player={p}
+              revealed={!!revealed}
+              isLeader={isLeader}
+              isViewOnly={!!isViewOnly}
+              isSelf={p.id === playerId}
+              onClickVote={(vote) => store().saveScore(vote)}
+            />
           ))}
-          {/* Fallback msg if snapshot empty */}
           {isViewOnly && displayPlayers.length === 0 && (
             <p className="text-zinc-400 italic">
               No votes recorded for this session.
@@ -175,11 +195,11 @@ export function SprintBoard({
         <div className="flex flex-col items-center gap-6">
           {!isViewOnly &&
             !Boolean(revealed) &&
-            (Boolean(selected) || players.some((p) => p.vote)) && (
+            (Boolean(selectedVote) || players.some((p) => p.vote)) && (
               <div className="animate-in fade-in slide-in-from-bottom-4 text-center">
                 <Button
                   size="lg"
-                  onClick={onReveal}
+                  onClick={() => store().revealCards()}
                   className="rounded-full shadow-lg gap-2 px-8"
                 >
                   <Eye className="h-5 w-5" /> Reveal Cards
@@ -202,7 +222,7 @@ export function SprintBoard({
                   )}
                   onClick={() => {
                     if (isLeader && !isViewOnly && displayAverage) {
-                      onSaveScore(displayAverage);
+                      store().saveScore(displayAverage);
                     }
                   }}
                   title={
@@ -235,25 +255,26 @@ export function SprintBoard({
             <PokerCard
               key={val}
               value={val}
-              selected={selected === val}
+              selected={selectedVote === val}
               onClick={() => {
                 if (revealed && !isViewOnly) {
-                  if (isLeader) onSaveScore(val);
+                  if (isLeader) store().saveScore(val);
                 } else {
-                  onSelect(val);
+                  store().selectVote(val);
                 }
               }}
               className={cn(
                 Boolean(revealed) &&
-                  selected !== val &&
+                  selectedVote !== val &&
                   !isViewOnly &&
                   "opacity-40 grayscale hover:grayscale-0 hover:opacity-100 cursor-pointer",
                 Boolean(revealed) &&
-                  selected !== val &&
+                  selectedVote !== val &&
                   isViewOnly &&
                   "opacity-25 grayscale cursor-not-allowed",
-
-                Boolean(revealed) && selected === val && "ring-4 ring-blue-500",
+                Boolean(revealed) &&
+                  selectedVote === val &&
+                  "ring-4 ring-blue-500",
               )}
             />
           ))}

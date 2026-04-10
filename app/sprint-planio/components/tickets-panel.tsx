@@ -1,26 +1,21 @@
 "use client";
 
-import { useState } from "react";
-import axios from "axios";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
-  Users,
   List,
   Plus,
   X,
-  Play,
-  CheckCircle,
   Edit3,
   RotateCcw,
   Pencil,
   Trash2,
   Send,
-  Crown,
+  CloudDownload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -29,43 +24,27 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { Ticket } from "../types";
 import { useSprintStore } from "../store";
+import { useJira } from "../hooks/use-jira";
 import { JiraImportDialog } from "./jira-import-dialog";
-import { CloudDownload } from "lucide-react";
-import { toast } from "sonner";
-
-interface SprintSidebarProps {
-  onAddTicket: (title: string) => void;
-  onDeleteTicket: (id: string) => void;
-  onRenameTicket: (id: string, newTitle: string) => void;
-  onSetActiveTicket: (ticket: Ticket) => void;
-  onRevote: (ticket: Ticket) => void;
-  onUpdateScore: (id: string, score: string) => void;
-  onTransferLeadership: (targetPlayerId: string) => void;
-  onKickPlayer: (targetPlayerId: string) => void;
-}
 
 interface TicketFormData {
   title: string;
 }
 
-export function SprintSidebar({
-  onAddTicket,
-  onDeleteTicket,
-  onRenameTicket,
-  onSetActiveTicket,
-  onRevote,
-  onUpdateScore,
-  onTransferLeadership,
-  onKickPlayer,
-}: SprintSidebarProps) {
-  const { tickets, players, roomState, playerId } = useSprintStore();
-  const activeTicket = tickets.find(
-    (t) => t.id === roomState?.active_ticket_id,
+export function TicketsPanel() {
+  const tickets = useSprintStore((s) => s.tickets);
+  const players = useSprintStore((s) => s.players);
+  const roomState = useSprintStore((s) => s.roomState);
+  const playerId = useSprintStore((s) => s.playerId);
+
+  const isLeader = useMemo(
+    () => players.find((p) => p.id === playerId)?.is_leader || false,
+    [players, playerId],
   );
 
-  const isLeader = players.find((p) => p.id === playerId)?.is_leader;
+  const store = useSprintStore.getState;
+  const { postScoreToJira } = useJira();
 
   const [showAddTicket, setShowAddTicket] = useState(false);
   const [showJiraImport, setShowJiraImport] = useState(false);
@@ -80,18 +59,10 @@ export function SprintSidebar({
     id: string;
     title: string;
   } | null>(null);
-  const [transferTarget, setTransferTarget] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
-  const [kickTarget, setKickTarget] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
 
   const onSubmit = (data: TicketFormData) => {
     if (data.title.trim()) {
-      onAddTicket(data.title.trim());
+      store().addTicket(data.title.trim());
       reset();
       setShowAddTicket(false);
     }
@@ -99,77 +70,26 @@ export function SprintSidebar({
 
   const handleUpdateScore = () => {
     if (editingTicket) {
-      onUpdateScore(editingTicket.id, editingTicket.score);
+      store().updateTicketScore(editingTicket.id, editingTicket.score);
       setEditingTicket(null);
     }
   };
 
   const handleRename = () => {
     if (renamingTicket && renamingTicket.title.trim()) {
-      onRenameTicket(renamingTicket.id, renamingTicket.title);
+      store().renameTicket(renamingTicket.id, renamingTicket.title);
       setRenamingTicket(null);
     }
   };
 
-  const handlePostScoreToJira = async (ticket: Ticket) => {
+  const handlePostScoreToJira = (ticket: typeof tickets[0]) => {
     const match = ticket.title.match(/^([A-Z]+-\d+):/);
-    if (!match) return;
-
-    const issueKey = match[1];
-    const score = ticket.score;
-
-    if (!score) {
-      toast.error("No score to post");
-      return;
-    }
-
-    const authType = localStorage.getItem("jira_auth_type") || "basic";
-    const payload: any = {
-      issueKey,
-      score: score,
-    };
-
-    if (authType === "oauth") {
-      payload.authType = "oauth";
-      payload.accessToken = localStorage.getItem("jira_access_token");
-      payload.cloudId = localStorage.getItem("jira_cloud_id");
-
-      if (!payload.accessToken) {
-        toast.error(
-          "Missing Jira OAuth token. Please reconnect in Import dialog.",
-        );
-        return;
-      }
-    } else {
-      payload.authType = "basic";
-      payload.domain = localStorage.getItem("jira_domain");
-      payload.email = localStorage.getItem("jira_email");
-      payload.token = localStorage.getItem("jira_token");
-
-      if (!payload.domain || !payload.email || !payload.token) {
-        toast.error(
-          "Missing Jira credentials. Please open Import dialog to save them.",
-        );
-        return;
-      }
-    }
-
-    const toastId = toast.loading("Updating Jira issue...");
-
-    try {
-      await axios.post("/api/jira/update-issue", payload);
-      toast.success("Jira issue updated!", { id: toastId });
-    } catch (error: any) {
-      console.error(error);
-      toast.error(error.response?.data?.error || "Failed to update issue", {
-        id: toastId,
-      });
-    }
+    if (!match || !ticket.score) return;
+    postScoreToJira(match[1], ticket.score);
   };
 
   return (
-    <div className="w-full lg:w-80 flex flex-col gap-8 border-t lg:border-t-0 lg:border-l border-zinc-200 dark:border-zinc-800 pt-8 lg:pt-0 lg:pl-8">
-      {/* AGENDA SECTION */}
+    <>
       <Card className="flex-1 flex flex-col border-none shadow-none bg-transparent">
         <div className="flex items-center justify-between mb-4">
           <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-500">
@@ -248,7 +168,7 @@ export function SprintSidebar({
               return (
                 <div
                   key={ticket.id}
-                  onClick={() => isLeader && onSetActiveTicket(ticket)}
+                  onClick={() => isLeader && store().setActiveTicket(ticket)}
                   className={cn(
                     "group relative p-3 rounded-lg border transition-all hover:shadow-sm",
                     isLeader && "cursor-pointer",
@@ -298,12 +218,10 @@ export function SprintSidebar({
                       </div>
                     </div>
 
-                    {/* Actions */}
                     {isLeader && (
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         {isCompleted && (
                           <>
-                            {/* Check for Jira Key pattern */}
                             {ticket.title.match(/^[A-Z]+-\d+:/) && (
                               <Button
                                 size="icon"
@@ -324,7 +242,7 @@ export function SprintSidebar({
                               className="h-6 w-6 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onRevote(ticket);
+                                store().revote(ticket);
                               }}
                               title="Revote"
                             >
@@ -371,7 +289,7 @@ export function SprintSidebar({
                           className="h-6 w-6 text-zinc-400 hover:text-red-600 hover:bg-red-50"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onDeleteTicket(ticket.id);
+                            store().deleteTicket(ticket.id);
                           }}
                           title="Delete"
                         >
@@ -387,80 +305,7 @@ export function SprintSidebar({
         </div>
       </Card>
 
-      {/* PLAYERS SECTION */}
-      <Card className="flex flex-col border-none shadow-none bg-transparent max-h-[300px]">
-        <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-500 mb-4">
-          <Users className="h-4 w-4" /> Players ({players.length})
-        </h3>
-        <div className="overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
-          <div className="space-y-2">
-            {players.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800"
-              >
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-8 w-8 bg-zinc-100 dark:bg-zinc-800">
-                    <AvatarFallback className="text-xs bg-gradient-to-br from-blue-500 to-purple-500 text-white">
-                      {p.name.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col">
-                    <span
-                      className={cn(
-                        "text-sm font-medium",
-                        p.id === playerId
-                          ? "text-blue-600 dark:text-blue-400"
-                          : "text-zinc-700 dark:text-zinc-300",
-                      )}
-                    >
-                      {p.name} {p.id === playerId && "(You)"}
-                    </span>
-                    {p.is_spectator && (
-                      <span className="text-[10px] text-zinc-400">
-                        Spectator
-                      </span>
-                    )}
-                  </div>
-                  {p.is_leader && (
-                    <Crown className="h-3 w-3 text-yellow-500 fill-yellow-500" />
-                  )}
-                </div>
-                {p.vote ? (
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                ) : (
-                  <span className="h-2 w-2 rounded-full bg-zinc-200 dark:bg-zinc-700" />
-                )}
-                {isLeader && p.id !== playerId && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="ml-auto text-[10px] h-6 px-2 text-zinc-400 hover:text-yellow-600"
-                      onClick={() => {
-                        setTransferTarget({ id: p.id, name: p.name });
-                      }}
-                    >
-                      Make Leader
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-6 w-6 text-zinc-400 hover:text-red-600 ml-1"
-                      title="Kick Player"
-                      onClick={() => setKickTarget({ id: p.id, name: p.name })}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </Card>
-
-      {/* Modals */}
+      {/* Edit Score Dialog */}
       <Dialog
         open={!!editingTicket}
         onOpenChange={(open) => !open && setEditingTicket(null)}
@@ -490,6 +335,7 @@ export function SprintSidebar({
         </DialogContent>
       </Dialog>
 
+      {/* Rename Dialog */}
       <Dialog
         open={!!renamingTicket}
         onOpenChange={(open) => !open && setRenamingTicket(null)}
@@ -519,91 +365,16 @@ export function SprintSidebar({
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={!!transferTarget}
-        onOpenChange={(open) => !open && setTransferTarget(null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Transfer Leadership</DialogTitle>
-          </DialogHeader>
-          <div className="py-4 text-zinc-600 dark:text-zinc-400">
-            Are you sure you want to pass leadership to{" "}
-            <span className="font-semibold text-zinc-900 dark:text-zinc-50">
-              {transferTarget?.name}
-            </span>
-            ?
-            <br />
-            <span className="text-xs text-red-500 mt-2 block">
-              You will lose administrative access to this room.
-            </span>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setTransferTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (transferTarget) {
-                  onTransferLeadership(transferTarget.id);
-                  setTransferTarget(null);
-                }
-              }}
-            >
-              Transfer Leadership
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={!!kickTarget}
-        onOpenChange={(open) => !open && setKickTarget(null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Kick Player</DialogTitle>
-          </DialogHeader>
-          <div className="py-4 text-zinc-600 dark:text-zinc-400">
-            Are you sure you want to kick{" "}
-            <span className="font-semibold text-zinc-900 dark:text-zinc-50">
-              {kickTarget?.name}
-            </span>
-            ?
-            <br />
-            <span className="text-xs text-red-500 mt-2 block">
-              They will be removed from the room immediately.
-            </span>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setKickTarget(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (kickTarget) {
-                  onKickPlayer(kickTarget.id);
-                  setKickTarget(null);
-                }
-              }}
-            >
-              Kick Player
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
+      {/* Jira Import Dialog */}
       <JiraImportDialog
         open={showJiraImport}
         onOpenChange={setShowJiraImport}
         onImport={(issues) => {
           issues.forEach((issue) => {
-            onAddTicket(`${issue.key}: ${issue.summary}`);
+            store().addTicket(`${issue.key}: ${issue.summary}`);
           });
         }}
       />
-    </div>
+    </>
   );
 }

@@ -32,13 +32,12 @@ const deckSchema = z.object({
 
 type DeckFormData = z.infer<typeof deckSchema>;
 
-interface SprintHeaderProps {
-  onSaveSettings: (newDeck: string[]) => void;
-  onReset: () => void;
-}
+export function GameHeader() {
+  const roomId = useSprintStore((s) => s.roomId);
+  const deck = useSprintStore((s) => s.deck);
 
-export function SprintHeader({ onSaveSettings, onReset }: SprintHeaderProps) {
-  const { roomId, deck } = useSprintStore();
+  const store = useSprintStore.getState;
+
   const [showSettings, setShowSettings] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isLinkCopied, setIsLinkCopied] = useState(false);
@@ -50,9 +49,7 @@ export function SprintHeader({ onSaveSettings, onReset }: SprintHeaderProps) {
     formState: { errors },
   } = useForm<DeckFormData>({
     resolver: zodResolver(deckSchema),
-    defaultValues: {
-      deckString: "",
-    },
+    defaultValues: { deckString: "" },
   });
 
   useEffect(() => {
@@ -72,7 +69,7 @@ export function SprintHeader({ onSaveSettings, onReset }: SprintHeaderProps) {
       return;
     }
 
-    onSaveSettings(cleanDeck);
+    store().saveDeckSettings(cleanDeck);
     setShowSettings(false);
   };
 
@@ -152,7 +149,7 @@ export function SprintHeader({ onSaveSettings, onReset }: SprintHeaderProps) {
           <Button
             variant="secondary"
             size="sm"
-            onClick={onReset}
+            onClick={() => store().resetVotes()}
             className="gap-2"
           >
             <RefreshCw className="h-4 w-4" /> Reset
