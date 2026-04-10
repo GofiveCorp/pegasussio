@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 export async function GET(req: NextRequest) {
   const clientId = process.env.JIRA_CLIENT_ID;
@@ -13,11 +14,18 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Scopes required for 3LO
-  // read:jira-work - to search issues
-  // write:jira-work - to post comments
-  // offline_access - (optional) to get refresh token if we wanted to persist long term,
-  // but for now we just want access_token for the session. Added for good measure.
+  const playerId = req.nextUrl.searchParams.get("playerId") || "";
+  const state = crypto.randomUUID();
+
+  // Store state + playerId in httpOnly cookie for CSRF validation
+  const cookieStore = await cookies();
+  cookieStore.set("jira_oauth_state", JSON.stringify({ state, playerId }), {
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: 300, // 5 minutes
+    path: "/",
+  });
+
   const scopes = "read:jira-work write:jira-work offline_access";
 
   const authUrl = new URL("https://auth.atlassian.com/authorize");
@@ -25,7 +33,7 @@ export async function GET(req: NextRequest) {
   authUrl.searchParams.append("client_id", clientId);
   authUrl.searchParams.append("scope", scopes);
   authUrl.searchParams.append("redirect_uri", redirectUri);
-  authUrl.searchParams.append("state", crypto.randomUUID()); // Simple state for now
+  authUrl.searchParams.append("state", state);
   authUrl.searchParams.append("response_type", "code");
   authUrl.searchParams.append("prompt", "consent");
 

@@ -1,15 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import axios from "axios";
+import { createServerSupabase } from "@/lib/supabase-server";
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const code = searchParams.get("code");
+  const state = searchParams.get("state");
   const error = searchParams.get("error");
 
   if (error || !code) {
     return new NextResponse(
       `<html><body><h1>Auth Failed</h1><p>${error || "No code returned"}</p></body></html>`,
       { status: 400, headers: { "Content-Type": "text/html" } },
+    );
+  }
+
+  // Validate CSRF state
+  const cookieStore = await cookies();
+  const oauthStateCookie = cookieStore.get("jira_oauth_state");
+
+  if (!oauthStateCookie?.value) {
+    return new NextResponse(
+      `<html><body><h1>Auth Failed</h1><p>Missing OAuth state cookie. Please try again.</p></body></html>`,
+      { status: 403, headers: { "Content-Type": "text/html" } },
+    );
+  }
+
+  let storedState: { state: string; playerId: string };
+  try {
+    storedState = JSON.parse(oauthStateCookie.value);
+  } catch {
+    return new NextResponse(
+      `<html><body><h1>Auth Failed</h1><p>Invalid state cookie.</p></body></html>`,
+      { status: 403, headers: { "Content-Type": "text/html" } },
+    );
+  }
+
+  if (storedState.state !== state) {
+    return new NextResponse(
+      `<html><body><h1>Auth Failed</h1><p>State mismatch (CSRF protection).</p></body></html>`,
+      { status: 403, headers: { "Content-Type": "text/html" } },
     );
   }
 
@@ -27,28 +58,24 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // 1. Exchange Code for Token
+    // 1. Exchange code for tokens
     const tokenResponse = await axios.post(
       "https://auth.atlassian.com/oauth/token",
       {
         grant_type: "authorization_code",
         client_id: clientId,
         client_secret: clientSecret,
-        code: code,
+        code,
         redirect_uri: redirectUri,
       },
     );
 
-    const { access_token } = tokenResponse.data;
+    const { access_token, refresh_token, expires_in } = tokenResponse.data;
 
-    // 2. Get Accessible Resources (Cloud ID)
+    // 2. Get accessible resources (cloudId)
     const resourcesResponse = await axios.get(
       "https://api.atlassian.com/oauth/token/accessible-resources",
-      {
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-        },
-      },
+      { headers: { Authorization: `Bearer ${access_token}` } },
     );
 
     const resources = resourcesResponse.data;
@@ -56,33 +83,66 @@ export async function GET(req: NextRequest) {
       throw new Error("No accessible resources found for this user.");
     }
 
-    // Just take the first one for now.
-    // Ideally we might want to let the user pick if they belong to multiple sites.
     const cloudId = resources[0].id;
     const siteName = resources[0].name;
 
-    // 3. Return HTML that posts message to opener
+    // 3. Store tokens server-side in Supabase
+    const expiresAt = new Date(Date.now() + expires_in * 1000).toISOString();
+    const supabase = createServerSupabase();
+
+    // Upsert: delete old session for this player, insert new one
+    if (storedState.playerId) {
+      await supabase
+        .from("jira_sessions")
+        .delete()
+        .eq("player_id", storedState.playerId);
+    }
+
+    const { data: session, error: insertError } = await supabase
+      .from("jira_sessions")
+      .insert({
+        player_id: storedState.playerId || null,
+        access_token,
+        refresh_token: refresh_token || null,
+        cloud_id: cloudId,
+        site_name: siteName,
+        expires_at: expiresAt,
+      })
+      .select("id")
+      .single();
+
+    if (insertError || !session?.id) {
+      console.error("Failed to save Jira session:", insertError);
+      return new NextResponse(
+        `<html><body><h1>Authentication Failed</h1><p>Could not save session. Please try again.</p></body></html>`,
+        { status: 500, headers: { "Content-Type": "text/html" } },
+      );
+    }
+
+    // 4. Set session cookie (httpOnly, 7 days)
+    cookieStore.set("jira_session_id", session.id, {
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60,
+      path: "/",
+    });
+
+    // Clear state cookie
+    cookieStore.delete("jira_oauth_state");
+
+    // 5. Return HTML that sends ONLY siteName back (NO tokens!)
     const html = `
       <!DOCTYPE html>
       <html>
-        <head>
-          <title>Auth Success</title>
-        </head>
+        <head><title>Auth Success</title></head>
         <body>
           <h1>Authentication Successful</h1>
           <p>Connecting to ${siteName}...</p>
           <script>
-            // Send tokens to main window
-            // Send tokens to main window
-            const payload = ${JSON.stringify({
+            window.opener.postMessage(${JSON.stringify({
               type: "JIRA_OAUTH_SUCCESS",
-              accessToken: access_token,
-              cloudId: cloudId,
-              siteName: siteName,
-            })};
-            
-            window.opener.postMessage(payload, window.location.origin);
-            // Close popup
+              siteName,
+            })}, window.location.origin);
             setTimeout(() => window.close(), 1000);
           </script>
         </body>

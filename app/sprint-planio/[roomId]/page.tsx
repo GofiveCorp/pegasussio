@@ -1,7 +1,10 @@
-import { Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import { DEFAULT_DECK } from "../store";
-import { SprintGame } from "../components/sprint-game";
+import { GameProvider } from "../components/game-provider";
+import { GameHeader } from "../components/game-header";
+import { VotingArea } from "../components/voting-area";
+import { TicketsPanel } from "../components/tickets-panel";
+import { PlayersPanel } from "../components/players-panel";
 import { Room, Player, Ticket } from "../types";
 
 interface PageProps {
@@ -27,7 +30,6 @@ export default async function SprintPlanioPage({
     .single();
 
   if (roomError || !roomData) {
-    // Attempt to create room
     const { error: createError } = await supabase
       .from("rooms")
       .insert([{ id: roomId, status: "active", card_deck: DEFAULT_DECK }]);
@@ -40,7 +42,7 @@ export default async function SprintPlanioPage({
         is_revealed: false,
       } as Room;
     } else {
-      // Fallback: Try fetching again in case of race condition
+      // Race condition fallback
       const { data: retryData } = await supabase
         .from("rooms")
         .select("*")
@@ -52,7 +54,7 @@ export default async function SprintPlanioPage({
     roomState = roomData;
   }
 
-  // 2. Fetch Initial Data (Tickets & Existing Players)
+  // 2. Fetch Initial Data
   const [pUsers, pTickets] = await Promise.all([
     supabase.from("players").select("*").eq("room_id", roomId),
     supabase
@@ -81,12 +83,23 @@ export default async function SprintPlanioPage({
   }
 
   return (
-    <SprintGame
+    <GameProvider
       roomId={roomId}
       initialRoomState={roomState}
       initialPlayers={initialPlayers}
       initialTickets={initialTickets}
       initialPlayerName={playerName}
-    />
+    >
+      <div className="min-h-screen bg-zinc-50 dark:bg-black flex flex-col">
+        <GameHeader />
+        <main className="flex-1 flex flex-col lg:flex-row p-6 gap-8 max-w-7xl mx-auto w-full">
+          <VotingArea />
+          <div className="w-full lg:w-80 flex flex-col gap-8 border-t lg:border-t-0 lg:border-l border-zinc-200 dark:border-zinc-800 pt-8 lg:pt-0 lg:pl-8">
+            <TicketsPanel />
+            <PlayersPanel />
+          </div>
+        </main>
+      </div>
+    </GameProvider>
   );
 }

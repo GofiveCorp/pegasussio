@@ -1,42 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import axios from "axios";
+import { getJiraAuth, JiraAuthError } from "@/lib/jira-auth";
 
 export async function POST(req: NextRequest) {
   try {
-    const {
-      domain,
-      email,
-      token,
-      jql,
-      maxResults,
-      authType,
-      accessToken,
-      cloudId,
-    } = await req.json();
+    const cookieStore = await cookies();
+    const jiraSessionId = cookieStore.get("jira_session_id")?.value;
 
-    let jiraUrl = "";
-    let authHeader = "";
-
-    if (authType === "oauth") {
-      if (!accessToken || !cloudId) {
-        return NextResponse.json(
-          { error: "Missing OAuth credentials" },
-          { status: 400 },
-        );
-      }
-      jiraUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql`;
-      authHeader = `Bearer ${accessToken}`;
-    } else {
-      // Basic Auth
-      if (!domain || !email || !token) {
-        return NextResponse.json(
-          { error: "Missing Jira credentials" },
-          { status: 400 },
-        );
-      }
-      authHeader = `Basic ${Buffer.from(`${email}:${token}`).toString("base64")}`;
-      jiraUrl = `https://${domain}/rest/api/3/search/jql`;
+    if (!jiraSessionId) {
+      return NextResponse.json(
+        { error: "Not connected to Jira. Please authenticate first." },
+        { status: 401 },
+      );
     }
+
+    const { jql, maxResults } = await req.json();
+    const { accessToken, cloudId } = await getJiraAuth(jiraSessionId);
+
+    const jiraUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql`;
 
     const response = await axios.post(
       jiraUrl,
@@ -47,7 +29,7 @@ export async function POST(req: NextRequest) {
       },
       {
         headers: {
-          Authorization: authHeader,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
           Accept: "application/json",
         },
@@ -64,6 +46,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ issues });
   } catch (error: any) {
+    if (error instanceof JiraAuthError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.statusCode },
+      );
+    }
     console.error("Jira API Error:", error.response?.data || error.message);
     return NextResponse.json(
       {

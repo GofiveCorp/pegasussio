@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2, Plus, LogIn } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
 export default function SprintPlanioLobby() {
@@ -22,9 +24,7 @@ export default function SprintPlanioLobby() {
     setLoading(true);
     try {
       if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-        // Fallback for demo/offline: generate random ID
         const randomId = crypto.randomUUID();
-        // Save name to local storage or URL param? URL param is easier for now to pass to next page
         router.push(
           `/sprint-planio/${randomId}?name=${encodeURIComponent(playerName)}`,
         );
@@ -47,7 +47,6 @@ export default function SprintPlanioLobby() {
     } catch (error: any) {
       console.error("Error creating room:", error);
       toast.error("Failed to create room: " + error.message);
-      // Fallback
       const randomId = crypto.randomUUID();
       router.push(
         `/sprint-planio/${randomId}?name=${encodeURIComponent(playerName)}`,
@@ -65,10 +64,8 @@ export default function SprintPlanioLobby() {
     }
 
     let cleanId = joinId.trim();
-    // Handle pasted URL (e.g. http://localhost:3000/sprint-planio/uuid...)
     try {
       if (cleanId.includes("/") || cleanId.includes("http")) {
-        // If it looks like a URL, try to extract the last path segment
         const lastSegment = cleanId.split("?")[0].split("/").pop();
         if (lastSegment) cleanId = lastSegment;
       }
@@ -100,25 +97,23 @@ export default function SprintPlanioLobby() {
         </div>
 
         <div className="bg-white dark:bg-zinc-950 p-8 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800 space-y-8">
-          {/* Player Name Input (Global) */}
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
               Your Name
             </label>
-            <input
-              type="text"
+            <Input
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
               placeholder="Enter your name..."
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              className="h-12"
             />
           </div>
 
-          {/* Create Room */}
-          <button
+          <Button
             onClick={handleCreateRoom}
             disabled={loading || !playerName.trim()}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-semibold transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full h-12 gap-2 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20"
+            size="lg"
           >
             {loading ? (
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -126,7 +121,7 @@ export default function SprintPlanioLobby() {
               <Plus className="h-5 w-5" />
             )}
             Create New Room
-          </button>
+          </Button>
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
@@ -139,25 +134,23 @@ export default function SprintPlanioLobby() {
             </div>
           </div>
 
-          {/* Join Room */}
           <form onSubmit={handleJoinRoom} className="space-y-4">
-            <div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={joinId}
-                  onChange={(e) => setJoinId(e.target.value)}
-                  placeholder="Paste Room UUID..."
-                  className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                />
-                <button
-                  type="submit"
-                  disabled={!joinId.trim() || !playerName.trim()}
-                  className="bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 px-6 rounded-lg font-medium transition-colors disabled:opacity-50"
-                >
-                  <LogIn className="h-5 w-5" />
-                </button>
-              </div>
+            <div className="flex gap-2">
+              <Input
+                value={joinId}
+                onChange={(e) => setJoinId(e.target.value)}
+                placeholder="Paste Room UUID..."
+                className="h-12 flex-1"
+              />
+              <Button
+                type="submit"
+                disabled={!joinId.trim() || !playerName.trim()}
+                variant="secondary"
+                size="icon"
+                className="h-12 w-12"
+              >
+                <LogIn className="h-5 w-5" />
+              </Button>
             </div>
           </form>
         </div>
