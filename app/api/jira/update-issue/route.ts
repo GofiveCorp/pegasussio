@@ -1,18 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import axios from "axios";
+import { getJiraAuth, JiraAuthError } from "@/lib/jira-auth";
 
 export async function POST(req: NextRequest) {
   try {
-    const {
-      domain,
-      email,
-      token,
-      issueKey,
-      score,
-      authType,
-      accessToken,
-      cloudId,
-    } = await req.json();
+    const cookieStore = await cookies();
+    const jiraSessionId = cookieStore.get("jira_session_id")?.value;
+
+    if (!jiraSessionId) {
+      return NextResponse.json(
+        { error: "Not connected to Jira. Please authenticate first." },
+        { status: 401 },
+      );
+    }
+
+    const { issueKey, score } = await req.json();
 
     if (!issueKey || score === undefined || score === null) {
       return NextResponse.json(
@@ -21,31 +24,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let jiraUrl = "";
-    let authHeader = "";
-
-    if (authType === "oauth") {
-      if (!accessToken || !cloudId) {
-        return NextResponse.json(
-          { error: "Missing OAuth credentials" },
-          { status: 400 },
-        );
-      }
-      // PUT /rest/api/3/issue/{issueKeyOrId}
-      jiraUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${issueKey}`;
-      authHeader = `Bearer ${accessToken}`;
-    } else {
-      if (!domain || !email || !token) {
-        return NextResponse.json(
-          { error: "Missing Jira credentials" },
-          { status: 400 },
-        );
-      }
-      authHeader = `Basic ${Buffer.from(`${email}:${token}`).toString("base64")}`;
-      jiraUrl = `https://${domain}/rest/api/3/issue/${issueKey}`;
-    }
-
-    // Parse score to number
     const numericScore = parseFloat(score);
     if (isNaN(numericScore)) {
       return NextResponse.json(
@@ -54,24 +32,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ---------------------------------------------------------
-    // 1. DYNAMICALLY FIND "Story Points" FIELD ID
-    // ---------------------------------------------------------
-    let storyPointsFieldId = "customfield_10016"; // Fallback default
-    try {
-      // Construct base URL for field search
-      let fieldsUrl = "";
-      if (authType === "oauth") {
-        fieldsUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/field`;
-      } else {
-        fieldsUrl = `https://${domain}/rest/api/3/field`;
-      }
+    const { accessToken, cloudId } = await getJiraAuth(jiraSessionId);
+    const baseUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3`;
+    const authHeader = `Bearer ${accessToken}`;
 
-      const fieldsRes = await axios.get(fieldsUrl, {
-        headers: {
-          Authorization: authHeader,
-          Accept: "application/json",
-        },
+    // Dynamically find "Story Points" field ID
+    let storyPointsFieldId = "customfield_10016";
+    try {
+      const fieldsRes = await axios.get(`${baseUrl}/field`, {
+        headers: { Authorization: authHeader, Accept: "application/json" },
       });
 
       const spField = fieldsRes.data.find(
@@ -80,10 +49,6 @@ export async function POST(req: NextRequest) {
 
       if (spField) {
         storyPointsFieldId = spField.id;
-      } else {
-        console.warn(
-          "Could not find field named 'Story Points'. Using default: customfield_10016",
-        );
       }
     } catch (fieldError: any) {
       console.error(
@@ -92,25 +57,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ---------------------------------------------------------
-    // 2. UPDATE ISSUE
-    // ---------------------------------------------------------
-    const bodyData = {
-      fields: {
-        [storyPointsFieldId]: numericScore,
+    // Update issue
+    await axios.put(
+      `${baseUrl}/issue/${issueKey}`,
+      { fields: { [storyPointsFieldId]: numericScore } },
+      {
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
       },
-    };
-
-    await axios.put(jiraUrl, bodyData, {
-      headers: {
-        Authorization: authHeader,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    });
+    );
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    if (error instanceof JiraAuthError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.statusCode },
+      );
+    }
     console.error("Jira API Error:", error.response?.data || error.message);
     return NextResponse.json(
       {

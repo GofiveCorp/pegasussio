@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 
 interface PokerCardProps {
@@ -7,7 +8,7 @@ interface PokerCardProps {
   className?: string;
 }
 
-export function PokerCard({
+export const PokerCard = memo(function PokerCard({
   value,
   selected,
   onClick,
@@ -26,7 +27,6 @@ export function PokerCard({
     >
       <span className="text-3xl font-bold">{value}</span>
 
-      {/* Corner decorations to look like a playing card */}
       <span className="absolute top-2 left-2 text-xs font-semibold opacity-50">
         {value}
       </span>
@@ -35,4 +35,4 @@ export function PokerCard({
       </span>
     </button>
   );
-}
+});

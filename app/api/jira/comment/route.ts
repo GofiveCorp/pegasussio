@@ -1,18 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import axios from "axios";
+import { getJiraAuth, JiraAuthError } from "@/lib/jira-auth";
 
 export async function POST(req: NextRequest) {
   try {
-    const {
-      domain,
-      email,
-      token,
-      issueKey,
-      comment,
-      authType,
-      accessToken,
-      cloudId,
-    } = await req.json();
+    const cookieStore = await cookies();
+    const jiraSessionId = cookieStore.get("jira_session_id")?.value;
+
+    if (!jiraSessionId) {
+      return NextResponse.json(
+        { error: "Not connected to Jira. Please authenticate first." },
+        { status: 401 },
+      );
+    }
+
+    const { issueKey, comment } = await req.json();
 
     if (!issueKey || !comment) {
       return NextResponse.json(
@@ -21,57 +24,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let jiraUrl = "";
-    let authHeader = "";
+    const { accessToken, cloudId } = await getJiraAuth(jiraSessionId);
 
-    if (authType === "oauth") {
-      if (!accessToken || !cloudId) {
-        return NextResponse.json(
-          { error: "Missing OAuth credentials" },
-          { status: 400 },
-        );
-      }
-      jiraUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${issueKey}/comment`;
-      authHeader = `Bearer ${accessToken}`;
-    } else {
-      if (!domain || !email || !token) {
-        return NextResponse.json(
-          { error: "Missing Jira credentials" },
-          { status: 400 },
-        );
-      }
-      authHeader = `Basic ${Buffer.from(`${email}:${token}`).toString("base64")}`;
-      jiraUrl = `https://${domain}/rest/api/3/issue/${issueKey}/comment`;
-    }
+    const jiraUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${issueKey}/comment`;
 
-    const bodyData = {
-      body: {
-        type: "doc",
-        version: 1,
-        content: [
-          {
-            type: "paragraph",
-            content: [
-              {
-                type: "text",
-                text: comment,
-              },
-            ],
-          },
-        ],
+    await axios.post(
+      jiraUrl,
+      {
+        body: {
+          type: "doc",
+          version: 1,
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: comment }],
+            },
+          ],
+        },
       },
-    };
-
-    await axios.post(jiraUrl, bodyData, {
-      headers: {
-        Authorization: authHeader,
-        "Content-Type": "application/json",
-        Accept: "application/json",
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
       },
-    });
+    );
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    if (error instanceof JiraAuthError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.statusCode },
+      );
+    }
     console.error("Jira API Error:", error.response?.data || error.message);
     return NextResponse.json(
       {
