@@ -5,6 +5,10 @@ import { toast } from "sonner";
 
 export const DEFAULT_DECK = ["1", "2", "3", "5"];
 
+// Tracks the auto-advance timeout so it can be cancelled
+// if the leader manually selects a ticket during the delay.
+let autoAdvanceTimer: ReturnType<typeof setTimeout> | null = null;
+
 interface SprintState {
   // State
   roomId: string | null;
@@ -268,7 +272,10 @@ export const useSprintStore = create<SprintState>((set, get) => ({
     }
 
     if (nextTicket) {
-      setTimeout(() => {
+      // Cancel any previously scheduled auto-advance
+      if (autoAdvanceTimer) clearTimeout(autoAdvanceTimer);
+      autoAdvanceTimer = setTimeout(() => {
+        autoAdvanceTimer = null;
         get().setActiveTicket(nextTicket!, true);
       }, 300);
     }
@@ -277,6 +284,12 @@ export const useSprintStore = create<SprintState>((set, get) => ({
   setActiveTicket: async (ticket, skipAutoSave = false) => {
     const { roomId, roomState, players } = get();
     if (!roomId) return;
+
+    // Cancel any pending auto-advance so it doesn't overwrite an explicit selection
+    if (autoAdvanceTimer) {
+      clearTimeout(autoAdvanceTimer);
+      autoAdvanceTimer = null;
+    }
 
     // Auto-save current if revealed and switching
     if (

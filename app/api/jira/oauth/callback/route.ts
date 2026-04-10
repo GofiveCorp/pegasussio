@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
         .eq("player_id", storedState.playerId);
     }
 
-    const { data: session } = await supabase
+    const { data: session, error: insertError } = await supabase
       .from("jira_sessions")
       .insert({
         player_id: storedState.playerId || null,
@@ -111,8 +111,16 @@ export async function GET(req: NextRequest) {
       .select("id")
       .single();
 
+    if (insertError || !session?.id) {
+      console.error("Failed to save Jira session:", insertError);
+      return new NextResponse(
+        `<html><body><h1>Authentication Failed</h1><p>Could not save session. Please try again.</p></body></html>`,
+        { status: 500, headers: { "Content-Type": "text/html" } },
+      );
+    }
+
     // 4. Set session cookie (httpOnly, 7 days)
-    cookieStore.set("jira_session_id", session?.id || "", {
+    cookieStore.set("jira_session_id", session.id, {
       httpOnly: true,
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60,
