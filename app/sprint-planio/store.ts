@@ -307,6 +307,13 @@ export const useSprintStore = create<SprintState>((set, get) => ({
           numericVotes.reduce((a, b) => a + b, 0) / numericVotes.length
         ).toFixed(1);
         await get().saveScore(avg);
+
+        // saveScore schedules an auto-advance timer. Cancel it since the
+        // leader is explicitly choosing which ticket to switch to.
+        if (autoAdvanceTimer) {
+          clearTimeout(autoAdvanceTimer);
+          autoAdvanceTimer = null;
+        }
       }
     }
 
