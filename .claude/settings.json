@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Task",
+      "Glob",
+      "Grep",
+      "LS",
+      "Read",
+      "Edit",
+      "MultiEdit",
+      "Write",
+      "WebFetch",
+      "WebSearch",
+      "Skill",
+      "Bash(python3 -c \":*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(wc:*)",
+      "Bash(git stash:*)",
+      "Bash(ls:*)",
+      "Bash(awk:*)",
+      "Bash(find:*)",
+      "Bash(sort:*)",
+      "Bash(grep:*)",
+      "Bash(git status:*)",
+      "Bash(echo:*)",
+      "Bash(bash -l -c:*)",
+      "Bash(export PATH:*)",
+      "Bash(xargs:*)",
+      "Bash(git mv:*)",
+      "Bash(ln:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "Bash(xxd:*)"
+    ]
+  }
+}
