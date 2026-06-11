@@ -6,10 +6,6 @@ import { toast } from "sonner";
 
 export const DEFAULT_DECK = ["1", "2", "3", "5"];
 
-// Tracks the auto-advance timeout so it can be cancelled
-// if the leader manually selects a ticket during the delay.
-let autoAdvanceTimer: ReturnType<typeof setTimeout> | null = null;
-
 interface SprintState {
   // State
   roomId: string | null;
@@ -224,8 +220,11 @@ export const useSprintStore = create<SprintState>((set, get) => ({
   },
 
   revealCards: async () => {
-    const { roomId, players, roomState } = get();
+    const { roomId, players, roomState, playerId } = get();
     if (!roomId || !roomState?.active_ticket_id) return;
+
+    // Only the leader may reveal the cards.
+    if (!players.find((p) => p.id === playerId)?.is_leader) return;
 
     await supabase
       .from("rooms")
@@ -261,7 +260,7 @@ export const useSprintStore = create<SprintState>((set, get) => ({
   },
 
   saveScore: async (scoreToSave) => {
-    const { roomState, players, tickets } = get();
+    const { roomState, players } = get();
     if (!roomState?.active_ticket_id || !scoreToSave) return;
 
     const snapshot: VoteSnapshot[] = players
@@ -284,52 +283,11 @@ export const useSprintStore = create<SprintState>((set, get) => ({
     }
 
     toast.success("Score saved!");
-
-    // Auto-advance to next pending ticket
-    const currentIndex = tickets.findIndex(
-      (t) => t.id === roomState.active_ticket_id,
-    );
-    if (currentIndex === -1) return;
-
-    let nextTicket: Ticket | undefined;
-
-    // Search forward
-    for (let i = currentIndex + 1; i < tickets.length; i++) {
-      if (tickets[i].status !== "completed" && !tickets[i].score) {
-        nextTicket = tickets[i];
-        break;
-      }
-    }
-
-    // Wrap around
-    if (!nextTicket) {
-      for (let i = 0; i < currentIndex; i++) {
-        if (tickets[i].status !== "completed" && !tickets[i].score) {
-          nextTicket = tickets[i];
-          break;
-        }
-      }
-    }
-
-    if (nextTicket) {
-      // Cancel any previously scheduled auto-advance
-      if (autoAdvanceTimer) clearTimeout(autoAdvanceTimer);
-      autoAdvanceTimer = setTimeout(() => {
-        autoAdvanceTimer = null;
-        get().setActiveTicket(nextTicket!, true);
-      }, 300);
-    }
   },
 
   setActiveTicket: async (ticket, skipAutoSave = false) => {
     const { roomId, roomState, players } = get();
     if (!roomId) return;
-
-    // Cancel any pending auto-advance so it doesn't overwrite an explicit selection
-    if (autoAdvanceTimer) {
-      clearTimeout(autoAdvanceTimer);
-      autoAdvanceTimer = null;
-    }
 
     // Auto-save current if revealed and switching
     if (
@@ -347,13 +305,6 @@ export const useSprintStore = create<SprintState>((set, get) => ({
           numericVotes.reduce((a, b) => a + b, 0) / numericVotes.length
         ).toFixed(1);
         await get().saveScore(avg);
-
-        // saveScore schedules an auto-advance timer. Cancel it since the
-        // leader is explicitly choosing which ticket to switch to.
-        if (autoAdvanceTimer) {
-          clearTimeout(autoAdvanceTimer);
-          autoAdvanceTimer = null;
-        }
       }
     }
 
