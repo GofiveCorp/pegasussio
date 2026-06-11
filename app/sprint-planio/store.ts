@@ -1,13 +1,10 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
 import { Player, Room, Ticket, VoteSnapshot } from "./types";
+import { getClientId } from "./client-id";
 import { toast } from "sonner";
 
 export const DEFAULT_DECK = ["1", "2", "3", "5"];
-
-// Tracks the auto-advance timeout so it can be cancelled
-// if the leader manually selects a ticket during the delay.
-let autoAdvanceTimer: ReturnType<typeof setTimeout> | null = null;
 
 interface SprintState {
   // State
@@ -38,7 +35,8 @@ interface SprintState {
   onTicketDelete: (deletedId: string) => void;
 
   // Game actions (async, call Supabase)
-  createPlayer: (name: string) => Promise<void>;
+  createPlayer: (name: string, opts?: { isLeader?: boolean }) => Promise<void>;
+  resolvePlayerByClient: () => Promise<Player | null>;
   selectVote: (value: string) => Promise<void>;
   revealCards: () => Promise<void>;
   resetVotes: () => Promise<void>;
@@ -135,24 +133,40 @@ export const useSprintStore = create<SprintState>((set, get) => ({
 
   // --- Game actions ---
 
-  createPlayer: async (name) => {
+  createPlayer: async (name, opts) => {
     const { roomId } = get();
     if (!roomId) return;
 
-    const storageKey = `sprint-planio-player:${roomId}`;
+    const clientId = getClientId();
 
-    const { count } = await supabase
+    // Caller can preset leadership (e.g. self-heal after a stale leave preserves
+    // it); otherwise the first player into the room becomes leader.
+    let isLeader = opts?.isLeader;
+    if (isLeader === undefined) {
+      const { count } = await supabase
+        .from("players")
+        .select("*", { count: "exact", head: true })
+        .eq("room_id", roomId);
+      isLeader = count === 0;
+    }
+
+    const { data: playerData, error } = await supabase
       .from("players")
-      .select("*", { count: "exact", head: true })
-      .eq("room_id", roomId);
-
-    const isFirstPlayer = count === 0;
-
-    const { data: playerData } = await supabase
-      .from("players")
-      .insert([{ room_id: roomId, name, is_leader: isFirstPlayer }])
+      .insert([{ room_id: roomId, name, is_leader: isLeader, client_id: clientId }])
       .select()
       .single();
+
+    if (error) {
+      // Unique violation: another tab for this browser raced us to the insert.
+      // Resolve to the row that won instead of creating a duplicate.
+      if (error.code === "23505") {
+        await get().resolvePlayerByClient();
+        return;
+      }
+      console.error(error);
+      toast.error("Failed to join room");
+      return;
+    }
 
     if (playerData) {
       set((state) => ({
@@ -161,8 +175,30 @@ export const useSprintStore = create<SprintState>((set, get) => ({
           ? state.players
           : [...state.players, playerData],
       }));
-      sessionStorage.setItem(storageKey, playerData.id);
     }
+  },
+
+  resolvePlayerByClient: async () => {
+    const { roomId } = get();
+    if (!roomId) return null;
+
+    const clientId = getClientId();
+    const { data: existing } = await supabase
+      .from("players")
+      .select("*")
+      .eq("room_id", roomId)
+      .eq("client_id", clientId)
+      .maybeSingle();
+
+    if (!existing) return null;
+
+    set((state) => ({
+      playerId: existing.id,
+      players: state.players.some((p) => p.id === existing.id)
+        ? state.players.map((p) => (p.id === existing.id ? existing : p))
+        : [...state.players, existing],
+    }));
+    return existing as Player;
   },
 
   selectVote: async (value) => {
@@ -184,8 +220,11 @@ export const useSprintStore = create<SprintState>((set, get) => ({
   },
 
   revealCards: async () => {
-    const { roomId, players, roomState } = get();
+    const { roomId, players, roomState, playerId } = get();
     if (!roomId || !roomState?.active_ticket_id) return;
+
+    // Only the leader may reveal the cards.
+    if (!players.find((p) => p.id === playerId)?.is_leader) return;
 
     await supabase
       .from("rooms")
@@ -221,7 +260,7 @@ export const useSprintStore = create<SprintState>((set, get) => ({
   },
 
   saveScore: async (scoreToSave) => {
-    const { roomState, players, tickets } = get();
+    const { roomState, players } = get();
     if (!roomState?.active_ticket_id || !scoreToSave) return;
 
     const snapshot: VoteSnapshot[] = players
@@ -244,52 +283,11 @@ export const useSprintStore = create<SprintState>((set, get) => ({
     }
 
     toast.success("Score saved!");
-
-    // Auto-advance to next pending ticket
-    const currentIndex = tickets.findIndex(
-      (t) => t.id === roomState.active_ticket_id,
-    );
-    if (currentIndex === -1) return;
-
-    let nextTicket: Ticket | undefined;
-
-    // Search forward
-    for (let i = currentIndex + 1; i < tickets.length; i++) {
-      if (tickets[i].status !== "completed" && !tickets[i].score) {
-        nextTicket = tickets[i];
-        break;
-      }
-    }
-
-    // Wrap around
-    if (!nextTicket) {
-      for (let i = 0; i < currentIndex; i++) {
-        if (tickets[i].status !== "completed" && !tickets[i].score) {
-          nextTicket = tickets[i];
-          break;
-        }
-      }
-    }
-
-    if (nextTicket) {
-      // Cancel any previously scheduled auto-advance
-      if (autoAdvanceTimer) clearTimeout(autoAdvanceTimer);
-      autoAdvanceTimer = setTimeout(() => {
-        autoAdvanceTimer = null;
-        get().setActiveTicket(nextTicket!, true);
-      }, 300);
-    }
   },
 
   setActiveTicket: async (ticket, skipAutoSave = false) => {
     const { roomId, roomState, players } = get();
     if (!roomId) return;
-
-    // Cancel any pending auto-advance so it doesn't overwrite an explicit selection
-    if (autoAdvanceTimer) {
-      clearTimeout(autoAdvanceTimer);
-      autoAdvanceTimer = null;
-    }
 
     // Auto-save current if revealed and switching
     if (
@@ -307,13 +305,6 @@ export const useSprintStore = create<SprintState>((set, get) => ({
           numericVotes.reduce((a, b) => a + b, 0) / numericVotes.length
         ).toFixed(1);
         await get().saveScore(avg);
-
-        // saveScore schedules an auto-advance timer. Cancel it since the
-        // leader is explicitly choosing which ticket to switch to.
-        if (autoAdvanceTimer) {
-          clearTimeout(autoAdvanceTimer);
-          autoAdvanceTimer = null;
-        }
       }
     }
 
@@ -451,6 +442,14 @@ export const useSprintStore = create<SprintState>((set, get) => ({
   },
 
   kickPlayer: async (targetPlayerId) => {
+    // Mark as kicked before deleting so the DELETE's old row image carries
+    // kicked_at — that's how the target distinguishes a real kick from an
+    // ordinary leave/refresh and avoids a false "you were kicked" redirect.
+    await supabase
+      .from("players")
+      .update({ kicked_at: new Date().toISOString() })
+      .eq("id", targetPlayerId);
+
     const { error } = await supabase
       .from("players")
       .delete()

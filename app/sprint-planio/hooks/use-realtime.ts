@@ -66,17 +66,26 @@ export function useRealtime(roomId: string) {
           filter: `room_id=eq.${roomId}`,
         },
         (payload) => {
-          const deletedId = payload.old.id;
+          const deleted = payload.old as Player;
           const state = store.getState();
-          state.onPlayerDelete(deletedId);
+          state.onPlayerDelete(deleted.id);
 
-          if (deletedId === state.playerId) {
+          if (deleted.id !== state.playerId) return;
+
+          if (deleted.kicked_at) {
+            // Explicitly kicked by a leader.
             toast.error("You have been kicked from the room.");
-            sessionStorage.removeItem(`sprint-planio-player:${roomId}`);
             state.setPlayerId(null);
             setTimeout(() => {
               window.location.href = "/sprint-planio";
             }, 2000);
+          } else {
+            // Our row was removed without a kick — a stale leave echo (typically
+            // our own refresh/unload beacon racing the reloaded page). Re-join so
+            // we don't silently drop out of our own room. createPlayer is
+            // idempotent on client_id, so this never creates a duplicate, and we
+            // preserve leadership so a leader's refresh doesn't orphan the room.
+            state.createPlayer(deleted.name, { isLeader: deleted.is_leader });
           }
         },
       )

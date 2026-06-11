@@ -4,6 +4,12 @@ export interface Player {
   vote: string | null;
   is_spectator: boolean;
   is_leader: boolean;
+  // Stable per-browser identity. Null on legacy rows created before the
+  // client_id migration; always set on rows created since.
+  client_id?: string | null;
+  // Set by kickPlayer immediately before the row is deleted, so the DELETE
+  // event's old row image lets the target tell a kick from a leave/refresh.
+  kicked_at?: string | null;
 }
 
 export interface Room {

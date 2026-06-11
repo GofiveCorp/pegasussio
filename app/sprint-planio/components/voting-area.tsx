@@ -97,7 +97,7 @@ export function VotingArea() {
 
   const activeTicket = useMemo(
     () => tickets.find((t) => t.id === roomState?.active_ticket_id),
-    [tickets, roomState?.active_ticket_id],
+    [tickets, roomState],
   );
 
   const isViewOnly = activeTicket?.status === "completed";
@@ -121,7 +121,7 @@ export function VotingArea() {
               }) as Player,
           )
         : players,
-    [isViewOnly, activeTicket?.votes_snapshot, players],
+    [isViewOnly, activeTicket, players],
   );
 
   const { average, displayAverage } = useMemo(() => {
@@ -140,7 +140,7 @@ export function VotingArea() {
       isViewOnly && activeTicket?.score ? activeTicket.score : avg;
 
     return { average: avg, displayAverage: display };
-  }, [displayPlayers, isViewOnly, activeTicket?.score]);
+  }, [displayPlayers, isViewOnly, activeTicket]);
 
   const store = useSprintStore.getState;
 
@@ -197,13 +197,19 @@ export function VotingArea() {
             !Boolean(revealed) &&
             (Boolean(selectedVote) || players.some((p) => p.vote)) && (
               <div className="animate-in fade-in slide-in-from-bottom-4 text-center">
-                <Button
-                  size="lg"
-                  onClick={() => store().revealCards()}
-                  className="rounded-full shadow-lg gap-2 px-8"
-                >
-                  <Eye className="h-5 w-5" /> Reveal Cards
-                </Button>
+                {isLeader ? (
+                  <Button
+                    size="lg"
+                    onClick={() => store().revealCards()}
+                    className="rounded-full shadow-lg gap-2 px-8"
+                  >
+                    <Eye className="h-5 w-5" /> Reveal Cards
+                  </Button>
+                ) : (
+                  <p className="text-sm text-zinc-500">
+                    Waiting for the leader to reveal…
+                  </p>
+                )}
                 <p className="text-xs mt-2 text-zinc-400">
                   {players.filter((p) => p.vote).length}/{players.length} voted
                 </p>
