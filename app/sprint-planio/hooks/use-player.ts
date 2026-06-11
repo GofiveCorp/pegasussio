@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useSprintStore } from "../store";
+import { getClientId } from "../client-id";
 import { Player } from "../types";
 import { toast } from "sonner";
 
@@ -20,34 +21,26 @@ export function usePlayer(roomId: string, initialPlayerName: string, initialPlay
     hasAttemptedJoin.current = true;
 
     const joinAsPlayer = async () => {
-      const storageKey = `sprint-planio-player:${roomId}`;
-      const storedPlayerId = sessionStorage.getItem(storageKey);
+      const clientId = getClientId();
 
-      if (storedPlayerId) {
-        // Check initial props first
-        const existing = initialPlayers.find((p) => p.id === storedPlayerId);
-        if (existing) {
-          useSprintStore.getState().setPlayerId(existing.id);
-          return;
-        }
-        // Fallback: check DB
-        const { data: remotePlayer } = await supabase
-          .from("players")
-          .select("*")
-          .eq("id", storedPlayerId)
-          .single();
-
-        if (remotePlayer) {
-          useSprintStore.getState().setPlayerId(remotePlayer.id);
-          useSprintStore.getState().onPlayerInsert(remotePlayer);
-          return;
-        }
+      // Fast path: this browser already has a player in the SSR snapshot.
+      const fromSSR = initialPlayers.find((p) => p.client_id === clientId);
+      if (fromSSR) {
+        useSprintStore.getState().setPlayerId(fromSSR.id);
+        useSprintStore.getState().onPlayerInsert(fromSSR);
+        return;
       }
+
+      // Authoritative: a row may have been created after SSR (e.g. another
+      // tab). Reuse it rather than inserting a duplicate.
+      const existing = await useSprintStore.getState().resolvePlayerByClient();
+      if (existing) return;
 
       if (initialPlayerName && initialPlayerName !== "Anonymous") {
         await useSprintStore.getState().createPlayer(initialPlayerName);
       }
-      // If Anonymous, the GameProvider will show the name prompt
+      // If Anonymous, the GameProvider will show the name prompt (which calls
+      // createPlayer — itself idempotent on client_id).
     };
 
     joinAsPlayer();

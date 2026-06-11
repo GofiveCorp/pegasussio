@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Rules
+
+Read files first. Write complete solution. Test once. No over-engineering. Use LSP for navigation.
+
 ## Project Overview
 
 Pegasussio is a Next.js 16 super-app combining multiple productivity micro-apps: **Pull Requestio** (GitHub PR dashboard) and **Sprint Planio** (real-time planning poker with Jira integration). Uses Bun as the runtime.
